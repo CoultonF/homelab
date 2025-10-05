@@ -1,0 +1,8 @@
+context: homelab
+contexts:
+    homelab:
+        endpoints:
+            - 192.168.0.249
+        ca: <BASE64_ENCODED_CA_CERTIFICATE>
+        crt: <BASE64_ENCODED_CLIENT_CERTIFICATE>
+        key: <BASE64_ENCODED_PRIVATE_KEY>

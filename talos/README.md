@@ -6,42 +6,55 @@ This directory contains Talos Linux machine configurations for the homelab clust
 
 - **Talos Version**: v1.10.6
 - **Kubernetes Version**: v1.33.3
+- **Cluster Name**: homelab
 - **Nodes**:
   - Control Plane: talos-1ca-62z (192.168.0.249)
 
-## Exporting Current Configuration
+## Configuration Files
 
-Due to a TLS certificate key size issue with the current Talos installation, the machine config cannot be directly exported via `talosctl`.
+**Note**: Machine configurations (`controlplane.yaml`, `worker.yaml`) and talosconfig are **NOT** stored in this repository for security reasons. They are kept in `.gitignore`.
 
-### To manually export configurations:
+**Actual configs location**: `/Users/cfraser/Repos/talosctl-test/`
 
-If you have physical or console access to the node:
+Files in this directory:
+- `talosconfig.example` - Example talosconfig structure (credentials redacted)
+- `SETUP.md` - Instructions for accessing Talos from another machine
+- `README.md` - This file
+
+## Using These Configurations
+
+### Initial Cluster Bootstrap
 
 ```bash
-# From the Talos node console or via SSH (if enabled)
-talosctl read /system/state/config.yaml > controlplane.yaml
+# Apply control plane configuration
+talosctl apply-config --insecure \
+  --nodes 192.168.0.249 \
+  --file controlplane.yaml
+
+# Bootstrap etcd
+talosctl bootstrap --nodes 192.168.0.249
+
+# Generate kubeconfig
+talosctl kubeconfig --nodes 192.168.0.249
 ```
 
-Or regenerate configurations based on your current cluster:
+### Adding Worker Nodes
 
 ```bash
-# Generate new configs (this creates new certificates)
-talosctl gen config talos-cluster https://192.168.0.249:6443 \
-  --output-dir talos/ \
-  --with-docs=false \
-  --with-examples=false
-
-# This will create:
-# - controlplane.yaml
-# - worker.yaml
-# - talosconfig
+# Apply worker configuration (modify IP as needed)
+talosctl apply-config --insecure \
+  --nodes <worker-ip> \
+  --file worker.yaml
 ```
 
-## Configuration Files (To Be Added)
+### Updating Configurations
 
-- `controlplane.yaml` - Control plane node configuration
-- `worker.yaml` - Worker node configuration (if applicable)
-- `patches/` - Talos config patches for customization
+```bash
+# Apply updated config to running node
+talosctl apply-config \
+  --nodes 192.168.0.249 \
+  --file controlplane.yaml
+```
 
 ## Known Issues
 

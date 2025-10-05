@@ -8,12 +8,14 @@ To access your Talos cluster from another machine, you need the Talos configurat
 
 ### On the current machine (this machine):
 
+The actual talosconfig with credentials is stored separately and not in this repo for security.
+
 ```bash
-# The talos config is located at:
-~/.talos/config
+# The original talosconfig is located at:
+/Users/cfraser/Repos/talosctl-test/talosconfig
 
 # Copy this file to the new machine
-scp ~/.talos/config user@new-machine:~/.talos/config
+scp /Users/cfraser/Repos/talosctl-test/talosconfig user@new-machine:~/.talos/config
 ```
 
 ### On the new machine:
