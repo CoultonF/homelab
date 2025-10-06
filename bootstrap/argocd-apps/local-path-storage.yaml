@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/CoultonF/homelab
-    targetRevision: HEAD
+    targetRevision: main
     path: infrastructure/local-path-storage
   destination:
     server: https://kubernetes.default.svc

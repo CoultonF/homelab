@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/CoultonF/homelab
-    targetRevision: HEAD
+    targetRevision: main
     path: bootstrap/argocd-apps
   destination:
     server: https://kubernetes.default.svc
