@@ -7,7 +7,7 @@ Recipe management application with a PostgreSQL database backend.
 - Namespace: mealie
 - Deployments: mealie, postgres
 - Services: mealie (NodePort 30925), postgres
-- Ingress: mealie-ingress (mealie.coultonf.com)
+- Ingress: mealie-ingress
 - PersistentVolumes: mealie-data-pv (10Gi), mealie-pgdata-pv (5Gi)
 - PersistentVolumeClaims: mealie-data-pvc, mealie-pgdata-pvc
 - ConfigMap: mealie-config

@@ -7,25 +7,25 @@ Cloudflare Tunnel client for exposing services through Cloudflare's network.
 - Deployment: cloudflared
 - ConfigMap: cloudflared-config
 
+## Configuration Files
+
+- `cloudflared-config-configmap.yaml` - Cloudflare Tunnel configuration
+- `cloudflared-deployment.yaml` - Deployment manifest
+- `tunnel-credentials.secret.yaml` - Cloudflare credentials (not in git)
+
 ## Required Secrets
 
-The following secrets need to be created before deploying:
+The tunnel credentials file is excluded from git. Apply it before deployment:
 
 ```bash
-kubectl create secret generic cloudflared-token \
-  --from-literal=token=<your-cloudflare-tunnel-token> \
-  -n cloudflared
-
-kubectl create secret generic tunnel-credentials \
-  --from-file=credentials.json=<path-to-credentials-json> \
-  -n cloudflared
+kubectl apply -f tunnel-credentials.secret.yaml
 ```
 
 ## Deployment
 
 ```bash
 kubectl apply -f namespace.yaml
-# Create secrets (see above)
+kubectl apply -f tunnel-credentials.secret.yaml
 kubectl apply -f cloudflared-config-configmap.yaml
 kubectl apply -f cloudflared-deployment.yaml
 ```
