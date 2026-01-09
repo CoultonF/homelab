@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: coredns
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app.kubernetes.io/name: coredns
   ports:
@@ -14,9 +14,7 @@ spec:
       port: 53
       targetPort: 53
       protocol: UDP
-      nodePort: 30053
     - name: dns-tcp
       port: 53
       targetPort: 53
       protocol: TCP
-      nodePort: 30054
