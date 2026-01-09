@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-config
+  namespace: coredns
+  labels:
+    app.kubernetes.io/name: coredns
+data:
+  Corefile: |
+    # Custom zone for app.rcom - resolves to local computer
+    rcom:53 {
+        log
+        errors
+        hosts {
+            192.168.0.43 app.rcom
+            fallthrough
+        }
+        # If no match, forward to upstream
+        forward . 8.8.8.8 1.1.1.1
+    }
+
+    # Default zone - forward all other queries to upstream DNS
+    .:53 {
+        log
+        errors
+        health {
+            lameduck 5s
+        }
+        ready
+        # Forward to Google and Cloudflare DNS
+        forward . 8.8.8.8 1.1.1.1 {
+            max_concurrent 1000
+        }
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
