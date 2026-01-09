@@ -7,12 +7,14 @@ metadata:
     app.kubernetes.io/name: coredns
 data:
   Corefile: |
-    # Custom zone for app.rcom - resolves to local computer
+    # Custom zone for rcom - resolves to local computer
     rcom:53 {
         log
         errors
         hosts {
             192.168.0.43 app.rcom
+            192.168.0.43 hmr.app.rcom
+            192.168.0.43 web-api.app.rcom
             fallthrough
         }
         # If no match, forward to upstream
