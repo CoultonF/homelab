@@ -39,6 +39,30 @@ spec:
           chmod +x kubectl
           mv kubectl /usr/local/bin/
 
+          # Configure kubectl to use in-cluster config
+          export KUBERNETES_SERVICE_HOST=kubernetes.default.svc
+          export KUBERNETES_SERVICE_PORT=443
+          mkdir -p /root/.kube
+          cat > /root/.kube/config <<KUBE_EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - cluster:
+              certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              server: https://kubernetes.default.svc
+            name: default
+          contexts:
+          - context:
+              cluster: default
+              user: default
+            name: default
+          current-context: default
+          users:
+          - name: default
+            user:
+              tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+          KUBE_EOF
+
           # Configure SSH
           mkdir -p /run/sshd
           mkdir -p /root/.ssh
