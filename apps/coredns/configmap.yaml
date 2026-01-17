@@ -21,6 +21,18 @@ data:
         forward . 8.8.8.8 1.1.1.1
     }
 
+    # Custom zone for homelab - resolves to cluster nodes
+    homelab:53 {
+        log
+        errors
+        hosts {
+            100.88.79.159 admin-pod.homelab
+            fallthrough
+        }
+        # If no match, forward to upstream
+        forward . 8.8.8.8 1.1.1.1
+    }
+
     # Default zone - forward all other queries to upstream DNS
     .:53 {
         log
