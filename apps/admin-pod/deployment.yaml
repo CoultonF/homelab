@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-pod
+  namespace: admin-pod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-pod
+  template:
+    metadata:
+      labels:
+        app: admin-pod
+    spec:
+      serviceAccountName: admin-pod
+      containers:
+      - name: ssh-server
+        image: ubuntu:22.04
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Install required packages
+          apt-get update && apt-get install -y \
+            openssh-server \
+            git \
+            curl \
+            wget \
+            vim \
+            nano \
+            ca-certificates \
+            gnupg \
+            lsb-release \
+            && rm -rf /var/lib/apt/lists/*
+
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          mv kubectl /usr/local/bin/
+
+          # Configure SSH
+          mkdir -p /run/sshd
+          mkdir -p /root/.ssh
+          chmod 700 /root/.ssh
+
+          # Copy authorized keys if they exist
+          if [ -f /etc/ssh-keys/authorized_keys ]; then
+            cp /etc/ssh-keys/authorized_keys /root/.ssh/authorized_keys
+            chmod 600 /root/.ssh/authorized_keys
+          fi
+
+          # Configure SSH to allow root login with keys only
+          sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+          sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+          sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+          # Generate host keys if they don't exist
+          ssh-keygen -A
+
+          # Start SSH server
+          /usr/sbin/sshd -D -e
+        ports:
+        - containerPort: 22
+          name: ssh
+        volumeMounts:
+        - name: ssh-keys
+          mountPath: /etc/ssh-keys
+          readOnly: true
+        securityContext:
+          runAsUser: 0
+          capabilities:
+            add:
+            - NET_BIND_SERVICE
+      volumes:
+      - name: ssh-keys
+        secret:
+          secretName: admin-pod-ssh-keys
+          optional: true
