@@ -1,0 +1,288 @@
+{
+  "iteration": 5,
+  "status": "partial_complete",
+  "timestamp": "2026-01-18T20:15:00Z",
+  "context": "fresh_window",
+  "summary": "Immich deployed and shared storage configured - blocked by PodSecurity policy",
+
+  "completion_percentage": 85,
+  "blockers": [
+    {
+      "priority": "P0",
+      "issue": "PodSecurity policy blocks hostPath volumes in immich namespace",
+      "affects": ["deployment_patch", "external_library_configuration"],
+      "action_required": "User must relax PodSecurity labels on immich namespace",
+      "estimated_time": "5 minutes",
+      "commands": [
+        "kubectl label namespace immich pod-security.kubernetes.io/enforce=privileged",
+        "kubectl label namespace immich pod-security.kubernetes.io/warn=privileged",
+        "kubectl label namespace immich pod-security.kubernetes.io/audit=privileged"
+      ]
+    }
+  ],
+
+  "immich": {
+    "namespace": "immich",
+    "helm_chart": "immich/immich",
+    "chart_version": "0.7.2",
+    "argocd_application": "immich",
+    "argocd_status": "Synced",
+    "pods": {
+      "server": {
+        "name": "immich-server",
+        "status": "Running",
+        "ready": "1/1",
+        "deployment": "immich-server-866794876"
+      },
+      "postgresql": {
+        "name": "immich-postgresql-0",
+        "status": "Running",
+        "ready": "1/1"
+      },
+      "machine_learning": {
+        "name": "immich-machine-learning",
+        "status": "Running",
+        "ready": "1/1"
+      },
+      "redis": {
+        "name": "immich-redis-master-0",
+        "status": "ImagePullBackOff",
+        "ready": "0/1",
+        "note": "Non-critical - server runs without Redis"
+      }
+    },
+    "pvcs": [
+      {
+        "name": "immich-library",
+        "size": "100Gi",
+        "status": "Bound",
+        "storage_class": "local-path"
+      },
+      {
+        "name": "data-immich-postgresql-0",
+        "size": "10Gi",
+        "status": "Bound",
+        "storage_class": "local-path"
+      }
+    ]
+  },
+
+  "shared_storage": {
+    "pv": {
+      "name": "icloud-photos-shared",
+      "capacity": "100Gi",
+      "access_modes": ["ReadWriteMany"],
+      "reclaim_policy": "Retain",
+      "storage_class": "icloud-shared",
+      "host_path": "/var/mnt/icloud-photos",
+      "status": "Bound",
+      "bound_to": "photo-sync/icloud-photos"
+    },
+    "pvcs": {
+      "photo_sync": {
+        "name": "icloud-photos",
+        "namespace": "photo-sync",
+        "status": "Bound",
+        "volume": "icloud-photos-shared",
+        "access_mode": "RWX"
+      }
+    }
+  },
+
+  "deployment_patch": {
+    "prepared": true,
+    "applied": false,
+    "file": "/Users/cfraser/Repos/homelab/apps/immich/deployment-icloud-mount.yaml",
+    "mount_path": "/external/icloud",
+    "host_path": "/var/mnt/icloud-photos",
+    "read_only": true,
+    "blocked_by": "PodSecurity policy",
+    "error_message": "pods is forbidden: violates PodSecurity baseline:latest: hostPath volumes"
+  },
+
+  "files_created": {
+    "storage": [
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/pv-shared-photos.yaml",
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/pvc-photos.yaml",
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/kustomization.yaml"
+    ],
+    "immich": [
+      "/Users/cfraser/Repos/homelab/apps/immich/deployment-icloud-mount.yaml",
+      "/Users/cfraser/Repos/homelab/apps/immich/deployment-patch.yaml",
+      "/Users/cfraser/Repos/homelab/apps/immich/kustomization.yaml",
+      "/Users/cfraser/Repos/homelab/apps/immich/pvc-library.yaml",
+      "/Users/cfraser/Repos/homelab/apps/immich/pv-icloud-photos.yaml"
+    ],
+    "argocd": [
+      "/Users/cfraser/Repos/homelab/bootstrap/argocd-apps/immich.yaml"
+    ],
+    "documentation": [
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_5_COMPLETE.md",
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_5_STATE.json"
+    ]
+  },
+
+  "git": {
+    "repository": "https://github.com/CoultonF/homelab",
+    "branch": "master",
+    "commits": [
+      {
+        "sha": "5e40d37",
+        "message": "Update iCloud shared storage to use ReadWriteMany",
+        "pushed": true
+      },
+      {
+        "sha": "40d0019",
+        "message": "Add shared hostPath storage for iCloud photos across namespaces",
+        "pushed": true
+      },
+      {
+        "sha": "4a9496e",
+        "message": "Simplify Immich configuration - use chart defaults for persistence",
+        "pushed": true
+      },
+      {
+        "sha": "7821b01",
+        "message": "Fix Immich persistence configuration",
+        "pushed": true
+      },
+      {
+        "sha": "ccae497",
+        "message": "Fix Immich Helm chart configuration",
+        "pushed": true
+      }
+    ]
+  },
+
+  "iterations_status": {
+    "iteration_1": {
+      "name": "Storage Infrastructure",
+      "status": "complete",
+      "completion": "100%"
+    },
+    "iteration_2": {
+      "name": "Credentials & Config",
+      "status": "complete",
+      "completion": "100%"
+    },
+    "iteration_3": {
+      "name": "Initial Authentication",
+      "status": "pending_user_action",
+      "completion": "0%",
+      "blocker": "User must complete 2FA authentication"
+    },
+    "iteration_4": {
+      "name": "ArgoCD Integration",
+      "status": "complete",
+      "completion": "100%"
+    },
+    "iteration_5": {
+      "name": "Immich Integration",
+      "status": "partial_complete",
+      "completion": "85%",
+      "blocker": "PodSecurity policy blocks hostPath volumes",
+      "user_action_required": true
+    },
+    "iteration_6": {
+      "name": "External Network Exposure",
+      "status": "blocked",
+      "completion": "0%",
+      "blocker": "Depends on Iteration 5 completion"
+    },
+    "iteration_7": {
+      "name": "Verification & Testing",
+      "status": "blocked",
+      "completion": "0%",
+      "blocker": "Depends on Iterations 5 & 6"
+    }
+  },
+
+  "next_steps": {
+    "immediate": [
+      {
+        "step": 1,
+        "action": "Relax PodSecurity on immich namespace",
+        "command": "kubectl label namespace immich pod-security.kubernetes.io/enforce=privileged",
+        "estimated_time": "1 minute"
+      },
+      {
+        "step": 2,
+        "action": "Apply deployment patch to mount iCloud photos",
+        "command": "kubectl patch deployment -n immich immich-server --type='json' -p='[...]'",
+        "estimated_time": "2 minutes"
+      },
+      {
+        "step": 3,
+        "action": "Verify mount is working",
+        "command": "kubectl exec -n immich deployment/immich-server -- ls /external/icloud",
+        "estimated_time": "1 minute"
+      },
+      {
+        "step": 4,
+        "action": "Configure Immich External Library via UI",
+        "path": "Administration → External Libraries → Create Library",
+        "estimated_time": "5 minutes"
+      },
+      {
+        "step": 5,
+        "action": "Complete iCloud 2FA authentication (Iteration 3)",
+        "reference": "/Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_3_MANUAL_STEPS.md",
+        "estimated_time": "5 minutes"
+      }
+    ],
+    "after_user_actions": [
+      "Iteration 6: Create ingress for immich.coultonf.com",
+      "Iteration 7: End-to-end verification and testing"
+    ]
+  },
+
+  "external_library_config": {
+    "ready": false,
+    "depends_on": "deployment_patch_applied",
+    "configuration": {
+      "name": "iCloud Photos",
+      "import_path": "/external/icloud/icloud-import",
+      "scan_schedule": "0 4 1 * *",
+      "watch_for_changes": true,
+      "scan_automatically": true
+    }
+  },
+
+  "security_notes": {
+    "hostpath_usage": {
+      "path": "/var/mnt/icloud-photos",
+      "purpose": "Cross-namespace file sharing on single-node cluster",
+      "mount_mode": "read-only in Immich",
+      "risk_level": "Low for homelab, acceptable for single-node",
+      "alternative": "NFS server for production environments"
+    },
+    "podsecurity_relaxation": {
+      "namespace": "immich",
+      "label": "privileged",
+      "justification": "Required for hostPath volumes",
+      "scope": "Namespace-level only",
+      "production_recommendation": "Use NFS or CSI driver instead"
+    }
+  },
+
+  "verification": {
+    "immich_deployed": true,
+    "immich_running": true,
+    "shared_pv_created": true,
+    "photo_sync_pvc_bound": true,
+    "deployment_patch_prepared": true,
+    "deployment_patch_applied": false,
+    "external_library_configured": false,
+    "ready_for_iteration_6": false,
+    "ready_for_iteration_6_reason": "Deployment patch blocked by PodSecurity"
+  },
+
+  "progress": {
+    "overall_completion": "65%",
+    "iterations_complete": 4,
+    "iterations_partial": 1,
+    "iterations_total": 7,
+    "iterations_blocked": 2,
+    "user_actions_required": 2
+  }
+}

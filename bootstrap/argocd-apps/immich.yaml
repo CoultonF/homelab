@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: immich
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://immich-app.github.io/immich-charts
+    targetRevision: 0.7.2
+    chart: immich
+    helm:
+      values: |
+        env:
+          TZ: "America/Edmonton"
+
+        immich:
+          persistence:
+            library:
+              existingClaim: immich-library
+
+        server:
+          persistence:
+            library:
+              existingClaim: immich-library
+
+        postgresql:
+          enabled: true
+          primary:
+            persistence:
+              enabled: true
+              size: 10Gi
+              storageClass: local-path
+
+        redis:
+          enabled: true
+          image:
+            tag: latest
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: immich
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
