@@ -5,8 +5,9 @@ metadata:
   namespace: photo-sync
 spec:
   accessModes:
-    - ReadWriteOnce  # local-path supports single-node access
+    - ReadWriteOnce
   resources:
     requests:
-      storage: 100Gi  # Adjust based on iCloud library size
-  storageClassName: local-path
+      storage: 100Gi
+  storageClassName: icloud-shared
+  volumeName: icloud-photos-shared
