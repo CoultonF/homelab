@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/CoultonF/homelab
-    targetRevision: main
+    targetRevision: master
     path: apps/photo-sync
   destination:
     server: https://kubernetes.default.svc
