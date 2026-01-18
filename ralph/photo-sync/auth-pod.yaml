@@ -8,7 +8,7 @@ spec:
   containers:
     - name: icloudpd
       image: boredazfcuk/icloudpd:latest
-      command: ["/bin/sh", "-c", "/opt/icloudpd/bin/icloudpd --username $(cat /credentials/username) --cookie-directory /config --auth-only && sleep 3600"]
+      command: ["/bin/sh", "-c", "/opt/icloudpd/bin/icloudpd --username $(cat /credentials/username) --password $(cat /credentials/password) --cookie-directory /config --auth-only && sleep 3600"]
       stdin: true
       tty: true
       volumeMounts:
