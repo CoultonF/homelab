@@ -5,7 +5,7 @@ metadata:
   namespace: photo-sync
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 100Gi

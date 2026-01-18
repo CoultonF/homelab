@@ -7,7 +7,7 @@ spec:
     storage: 100Gi
   volumeMode: Filesystem
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany  # Allow multiple PVCs to bind
   persistentVolumeReclaimPolicy: Retain
   storageClassName: icloud-shared
   hostPath:
