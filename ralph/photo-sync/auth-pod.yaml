@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: icloudpd-auth
+  namespace: photo-sync
+spec:
+  restartPolicy: Never
+  containers:
+    - name: icloudpd
+      image: boredazfcuk/icloudpd:latest
+      command: ["/bin/sh", "-c", "/opt/icloudpd/bin/icloudpd --username $(cat /credentials/username) --cookie-directory /config --auth-only && sleep 3600"]
+      stdin: true
+      tty: true
+      volumeMounts:
+        - name: credentials
+          mountPath: /credentials
+          readOnly: true
+        - name: config
+          mountPath: /config
+      env:
+        - name: TZ
+          value: "America/Edmonton"
+  volumes:
+    - name: credentials
+      secret:
+        secretName: icloud-credentials
+    - name: config
+      persistentVolumeClaim:
+        claimName: icloudpd-config
