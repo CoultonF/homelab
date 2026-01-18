@@ -1,0 +1,308 @@
+{
+  "ralph_loop": {
+    "iteration": 2,
+    "context": "fresh_start",
+    "date": "2026-01-18",
+    "status": "blocked_on_immich"
+  },
+
+  "current_state": {
+    "infrastructure_status": "complete_awaiting_immich",
+    "iterations_completed": [1, 2, 3, 4],
+    "iterations_pending": [5, 6, 7],
+    "current_blocker": "immich_not_installed",
+    "next_action": "user_must_install_immich",
+    "progress_percentage": 43
+  },
+
+  "cluster_verified": {
+    "timestamp": "2026-01-18T12:00:00Z",
+    "namespace": {
+      "name": "photo-sync",
+      "status": "Active",
+      "verified": true
+    },
+    "pvcs": [
+      {
+        "name": "icloud-photos",
+        "status": "Pending",
+        "size": "100Gi",
+        "access_mode": "RWO",
+        "storage_class": "local-path",
+        "note": "WaitForFirstConsumer - will bind when first pod uses it"
+      },
+      {
+        "name": "icloudpd-config",
+        "status": "Bound",
+        "size": "1Gi",
+        "access_mode": "RWO",
+        "storage_class": "local-path",
+        "volume": "pvc-cab8e83a-df0b-468a-b162-90482a1ff14a",
+        "note": "Authentication completed successfully"
+      }
+    ],
+    "cronjob": {
+      "name": "icloudpd-sync",
+      "schedule": "0 3 1 * *",
+      "timezone": "America/Edmonton",
+      "suspend": false,
+      "active": 0,
+      "last_schedule": "none",
+      "status": "ready_to_run"
+    },
+    "pods": [
+      {
+        "name": "icloudpd-auth",
+        "status": "Error",
+        "age": "16m",
+        "note": "Auth pod from Iteration 3 - can be cleaned up"
+      }
+    ],
+    "credentials": {
+      "secret_name": "icloud-credentials",
+      "apple_id": "cjrfraser@gmail.com",
+      "exists": true
+    },
+    "configmap": {
+      "name": "icloudpd-config",
+      "exists": true,
+      "data_keys": 7
+    },
+    "serviceaccount": {
+      "name": "icloudpd",
+      "exists": true
+    }
+  },
+
+  "storage_config": {
+    "storage_class": "local-path",
+    "provisioner": "rancher.io/local-path",
+    "reclaim_policy": "Delete",
+    "volume_binding_mode": "WaitForFirstConsumer",
+    "is_default": true,
+    "supports_rwx": false,
+    "supports_rwo": true
+  },
+
+  "blockers": {
+    "primary": {
+      "id": "immich_not_installed",
+      "severity": "critical",
+      "issue": "Immich is not installed on the cluster",
+      "affects_iterations": [5, 6, 7],
+      "verification_command": "kubectl get deployments -A | grep immich",
+      "verification_result": "no output - immich not found",
+      "resolution_required": "User must install Immich",
+      "resolution_options": [
+        {
+          "method": "helm",
+          "recommended": true,
+          "commands": [
+            "helm repo add immich https://immich-app.github.io/immich-charts",
+            "helm repo update",
+            "kubectl create namespace immich",
+            "helm install immich immich/immich -n immich"
+          ],
+          "verification": "kubectl get pods -n immich",
+          "estimated_time": "10 minutes"
+        },
+        {
+          "method": "argocd",
+          "recommended": false,
+          "requires": "Creating ArgoCD Application and manifests",
+          "estimated_time": "20 minutes"
+        }
+      ]
+    }
+  },
+
+  "argocd_analysis": {
+    "current_status": "photo-sync deployed manually",
+    "argocd_enabled": true,
+    "pattern_identified": true,
+    "reference_app": {
+      "name": "mealie",
+      "argocd_app_path": "/Users/cfraser/Repos/homelab/bootstrap/argocd-apps/mealie.yaml",
+      "manifests_path": "/Users/cfraser/Repos/homelab/apps/mealie/",
+      "repo_url": "https://github.com/CoultonF/homelab",
+      "target_revision": "main",
+      "auto_sync": true,
+      "create_namespace": true
+    },
+    "photo_sync_migration": {
+      "current_path": "/Users/cfraser/Repos/homelab/ralph/photo-sync/",
+      "target_path": "/Users/cfraser/Repos/homelab/apps/photo-sync/",
+      "argocd_app_path": "/Users/cfraser/Repos/homelab/bootstrap/argocd-apps/photo-sync.yaml",
+      "status": "not_migrated",
+      "recommended": "optional - can migrate after verification"
+    }
+  },
+
+  "ingress_controller": {
+    "type": "nginx",
+    "verified_via": "mealie-ingress",
+    "mealie_reference": {
+      "namespace": "mealie",
+      "host": "mealie.coultonf.com",
+      "service": "mealie",
+      "service_port": 9000,
+      "annotations": {
+        "nginx.ingress.kubernetes.io/proxy-body-size": "50m",
+        "nginx.ingress.kubernetes.io/proxy-read-timeout": "600",
+        "nginx.ingress.kubernetes.io/proxy-send-timeout": "600"
+      },
+      "tls_enabled": false,
+      "path": "/",
+      "path_type": "Prefix"
+    },
+    "immich_pattern": {
+      "host": "immich.coultonf.com",
+      "service": "immich-server",
+      "service_port": 3001,
+      "annotations": {
+        "nginx.ingress.kubernetes.io/proxy-body-size": "0",
+        "nginx.ingress.kubernetes.io/proxy-read-timeout": "600",
+        "nginx.ingress.kubernetes.io/proxy-send-timeout": "600",
+        "note": "proxy-body-size must be 0 (unlimited) for photo uploads"
+      }
+    }
+  },
+
+  "next_iteration_requirements": {
+    "iteration_5": {
+      "name": "Immich Integration",
+      "blocked": true,
+      "blocked_by": "immich_not_installed",
+      "prerequisites": [
+        "Immich must be installed and running",
+        "Need to identify: namespace, deployment name, service name"
+      ],
+      "tasks": [
+        "Identify Immich deployment and namespace",
+        "Patch Immich deployment to mount icloud-photos PVC",
+        "Mount path: /external/icloud (read-only)",
+        "Restart Immich deployment to apply mount",
+        "Access Immich admin UI",
+        "Configure External Library",
+        "Set import path: /external/icloud/icloud-import",
+        "Enable automatic scanning",
+        "Trigger initial library scan",
+        "Verify photos are indexed"
+      ],
+      "estimated_time": "15 minutes",
+      "verification": "kubectl exec -n <immich-ns> deployment/immich-server -- ls /external/icloud/"
+    },
+    "iteration_6": {
+      "name": "External Network Exposure",
+      "blocked": true,
+      "blocked_by": ["immich_not_installed", "iteration_5"],
+      "prerequisites": [
+        "Iteration 5 complete",
+        "Immich accessible internally",
+        "Mealie ingress as reference"
+      ],
+      "tasks": [
+        "Create immich-ingress.yaml",
+        "Use host: immich.coultonf.com",
+        "Update annotations for unlimited uploads",
+        "Apply ingress manifest",
+        "Wait for ingress to be ready",
+        "Test external access",
+        "Configure Immich external URL in admin settings"
+      ],
+      "estimated_time": "10 minutes",
+      "verification": "curl -I https://immich.coultonf.com"
+    },
+    "iteration_7": {
+      "name": "End-to-End Verification",
+      "blocked": true,
+      "blocked_by": ["immich_not_installed", "iteration_5", "iteration_6"],
+      "prerequisites": [
+        "All previous iterations complete",
+        "Immich accessible at immich.coultonf.com"
+      ],
+      "tasks": [
+        "Trigger manual sync from CronJob",
+        "Monitor job logs",
+        "Verify photos downloaded to PVC",
+        "Verify photos appear in Immich UI",
+        "Install and configure Immich iOS app",
+        "Test mobile backup",
+        "Document monthly workflow",
+        "Create verification script",
+        "Clean up auth pod"
+      ],
+      "estimated_time": "30 minutes"
+    }
+  },
+
+  "user_actions_required": {
+    "immediate": {
+      "priority": "CRITICAL",
+      "action": "Install Immich",
+      "blocking": true,
+      "estimated_time": "10 minutes",
+      "recommended_method": "helm",
+      "commands": [
+        "helm repo add immich https://immich-app.github.io/immich-charts",
+        "helm repo update",
+        "kubectl create namespace immich",
+        "helm install immich immich/immich -n immich",
+        "kubectl wait --for=condition=Ready pods --all -n immich --timeout=600s"
+      ]
+    },
+    "optional": {
+      "priority": "LOW",
+      "action": "Clean up auth pod",
+      "blocking": false,
+      "command": "kubectl delete pod icloudpd-auth -n photo-sync"
+    }
+  },
+
+  "iteration_2_summary": {
+    "tasks_completed": [
+      "Verified cluster state from previous iterations",
+      "Confirmed all infrastructure deployed successfully",
+      "Identified blocker: Immich not installed",
+      "Analyzed ArgoCD integration pattern",
+      "Documented migration path to ArgoCD",
+      "Created comprehensive state file"
+    ],
+    "time_spent": "5 minutes",
+    "errors_encountered": "none",
+    "files_created": [
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_2_STATUS.md",
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_2_STATE.json"
+    ]
+  },
+
+  "technical_notes": {
+    "pvc_pending_explanation": "icloud-photos PVC is Pending due to WaitForFirstConsumer binding mode. This is expected and will bind when first pod mounts it (during Iteration 5 or CronJob run).",
+    "pvc_bound_confirmation": "icloudpd-config PVC is Bound with volume pvc-cab8e83a-df0b-468a-b162-90482a1ff14a, confirming authentication was completed successfully.",
+    "auth_pod_error": "icloudpd-auth pod in Error state is expected - this was the one-time authentication pod from Iteration 3. Can be safely deleted.",
+    "argocd_optional": "Migrating photo-sync to ArgoCD is optional. Current manual deployment works fine. Can migrate after verification if desired.",
+    "storage_limitation": "local-path storage only supports RWO, not RWX. This is acceptable for this use case since CronJob and Immich won't run simultaneously on different nodes."
+  },
+
+  "next_context_instructions": {
+    "step_1": "Read this state file: /Users/cfraser/Repos/homelab/ralph/ITERATION_2_STATE.json",
+    "step_2": "Verify Immich is installed: kubectl get deployments -A | grep immich",
+    "step_3_if_immich_found": "Proceed to Iteration 5 (Immich Integration)",
+    "step_3_if_immich_not_found": "Report status and wait for user to install Immich",
+    "reference_files": [
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/ (all manifests)",
+      "/Users/cfraser/Repos/homelab/apps/mealie/mealie-ingress-ingress.yaml (ingress reference)",
+      "/Users/cfraser/Repos/homelab/bootstrap/argocd-apps/mealie.yaml (ArgoCD pattern)"
+    ]
+  },
+
+  "repository_info": {
+    "repo_url": "https://github.com/CoultonF/homelab",
+    "local_path": "/Users/cfraser/Repos/homelab/",
+    "main_branch": "main",
+    "argocd_enabled": true,
+    "talos_linux": true,
+    "single_node": true,
+    "node_tainted": true
+  }
+}

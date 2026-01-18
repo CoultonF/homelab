@@ -1,0 +1,20 @@
+### After These Actions
+
+Once both are complete:
+- **Iteration 5**: I'll mount the photo storage to Immich and configure External Library
+- **Iteration 6**: I'll expose Immich at immich.coultonf.com
+- **Iteration 7**: We'll verify the full pipeline and set up your iOS app
+
+### Documentation
+
+**Main README**: `/Users/cfraser/Repos/homelab/apps/photo-sync/README.md`
+
+**Iteration Summary**: `/Users/cfraser/Repos/homelab/ralph/ITERATION_4_SUMMARY.md`
+
+**State File**: `/Users/cfraser/Repos/homelab/ralph/ITERATION_4_STATE.json`
+
+---
+
+**Iteration 4 is complete!** The photo-sync infrastructure is now fully integrated with your ArgoCD setup. Ready to proceed with authentication and Immich installation whenever you are.
+
+=== CLAUDE EXECUTION END ===

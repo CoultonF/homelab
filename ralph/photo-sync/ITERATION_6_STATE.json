@@ -1,0 +1,243 @@
+{
+  "iteration": 6,
+  "context": "fresh",
+  "date": "2026-01-18",
+  "status": "awaiting_user_action",
+
+  "infrastructure": {
+    "deployment_status": "complete",
+    "namespace": "photo-sync",
+    "components": {
+      "cronjob": {
+        "name": "icloudpd-sync",
+        "schedule": "0 3 1 * *",
+        "timezone": "America/Edmonton",
+        "status": "deployed_ready"
+      },
+      "pvcs": [
+        {
+          "name": "icloud-photos",
+          "size": "100Gi",
+          "status": "Pending",
+          "note": "WaitForFirstConsumer - will bind on first use"
+        },
+        {
+          "name": "icloudpd-config",
+          "size": "1Gi",
+          "status": "Pending",
+          "note": "WaitForFirstConsumer - will bind when auth pod starts"
+        }
+      ],
+      "credentials": {
+        "secret_name": "icloud-credentials",
+        "apple_id": "cjrfraser@gmail.com",
+        "status": "configured"
+      },
+      "config": {
+        "configmap_name": "icloudpd-config",
+        "status": "deployed"
+      },
+      "rbac": {
+        "serviceaccount_name": "icloudpd",
+        "status": "deployed"
+      }
+    }
+  },
+
+  "cluster_info": {
+    "storage_class": "local-path",
+    "provisioner": "rancher.io/local-path",
+    "volume_binding_mode": "WaitForFirstConsumer",
+    "ingress_controller": "nginx",
+    "reference_ingress": {
+      "namespace": "mealie",
+      "name": "mealie-ingress",
+      "host": "mealie.coultonf.com",
+      "class": "nginx",
+      "tls": false
+    }
+  },
+
+  "blockers": [
+    {
+      "id": "blocker_1",
+      "priority": "critical",
+      "severity": "p0",
+      "issue": "Immich not installed",
+      "description": "Immich must be installed on the cluster before Iterations 5-7 can proceed",
+      "affects_iterations": [5, 6, 7],
+      "resolution": "User installs Immich on Kubernetes cluster",
+      "estimated_time_minutes": 10,
+      "verification_commands": [
+        "kubectl get deployments -A | grep immich",
+        "kubectl get svc -A | grep immich",
+        "kubectl get pods -A | grep immich"
+      ],
+      "installation_options": [
+        "Helm chart: helm install immich immich/immich -n immich",
+        "Manual deployment: https://immich.app/docs/install/kubernetes"
+      ]
+    },
+    {
+      "id": "blocker_2",
+      "priority": "medium",
+      "severity": "p1",
+      "issue": "iCloud authentication pending",
+      "description": "Interactive 2FA authentication required for CronJob to sync photos",
+      "affects_iterations": [3],
+      "affects_functionality": ["cronjob_execution"],
+      "resolution": "User completes interactive 2FA session",
+      "estimated_time_minutes": 5,
+      "can_parallel_with": ["blocker_1"],
+      "verification_commands": [
+        "kubectl get pvc -n photo-sync icloudpd-config",
+        "kubectl exec -n photo-sync <pod> -- ls /config/"
+      ],
+      "execution_steps": [
+        "kubectl apply -f /Users/cfraser/Repos/homelab/ralph/photo-sync/auth-pod.yaml",
+        "kubectl wait --for=condition=Ready pod/icloudpd-auth -n photo-sync --timeout=120s",
+        "kubectl attach -it icloudpd-auth -n photo-sync",
+        "# Enter password and 2FA code",
+        "kubectl delete pod icloudpd-auth -n photo-sync"
+      ],
+      "documentation": "/Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_3_MANUAL_STEPS.md"
+    }
+  ],
+
+  "progress": {
+    "iterations_complete": 4,
+    "iterations_total": 7,
+    "percentage": 57,
+    "status_by_iteration": {
+      "1": "complete",
+      "2": "complete",
+      "3": "pending_user_action",
+      "4": "complete",
+      "5": "blocked",
+      "6": "blocked",
+      "7": "blocked"
+    }
+  },
+
+  "next_iteration_ready_when": [
+    "Immich is installed and running on cluster",
+    "Immich namespace is identified",
+    "Immich deployment and service names are known"
+  ],
+
+  "optional_ready_when": [
+    "iCloud 2FA authentication completed (for CronJob to execute)"
+  ],
+
+  "remaining_work": {
+    "iteration_5": {
+      "name": "Immich Integration",
+      "status": "blocked",
+      "blocked_by": ["blocker_1"],
+      "tasks": [
+        "Identify Immich namespace and deployment",
+        "Patch Immich deployment to mount icloud-photos PVC at /external/icloud",
+        "Configure Immich External Library pointing to /external/icloud/icloud-import",
+        "Trigger initial library scan",
+        "Verify photos are indexed in Immich"
+      ],
+      "estimated_time_minutes": 15
+    },
+    "iteration_6": {
+      "name": "External Network Exposure",
+      "status": "blocked",
+      "blocked_by": ["blocker_1", "iteration_5"],
+      "tasks": [
+        "Create Ingress manifest for immich.coultonf.com",
+        "Apply ingress (using mealie pattern as reference)",
+        "Verify external access works",
+        "Configure Immich external URL setting in admin panel"
+      ],
+      "estimated_time_minutes": 10,
+      "reference_file": "/Users/cfraser/Repos/homelab/ralph/photo-sync/reference-mealie-ingress.yaml"
+    },
+    "iteration_7": {
+      "name": "Verification and Testing",
+      "status": "blocked",
+      "blocked_by": ["blocker_1", "iteration_5", "iteration_6"],
+      "tasks": [
+        "Trigger manual test sync job",
+        "Monitor job execution and logs",
+        "Verify photos appear in Immich UI at immich.coultonf.com",
+        "Configure Immich iOS app for backup",
+        "Test mobile backup functionality",
+        "Document monthly cleanup workflow",
+        "Create verification script for future use"
+      ],
+      "estimated_time_minutes": 30
+    }
+  },
+
+  "files_created": {
+    "manifests_applied": [
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/namespace.yaml",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/pvc-photos.yaml",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/pvc-config.yaml",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/configmap-icloudpd.yaml",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/secret-icloud-credentials.yaml",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/serviceaccount.yaml",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/cronjob.yaml"
+    ],
+    "user_actionable": [
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/auth-pod.yaml",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/verify-ready-for-iteration5.sh"
+    ],
+    "documentation": [
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/README.md",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/USER_ACTION_REQUIRED.md",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_3_MANUAL_STEPS.md",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_4_COMPLETE.md",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_5_STATUS.md",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_6_CONTEXT_STATUS.md",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/REMAINING_ITERATIONS_GUIDE.md",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/reference-mealie-ingress.yaml",
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/CREATE_SECRET.md"
+    ],
+    "state_files": [
+      "/Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_6_STATE.json"
+    ]
+  },
+
+  "user_actions": {
+    "primary_action_file": "/Users/cfraser/Repos/homelab/ralph/photo-sync/USER_ACTION_REQUIRED.md",
+    "verification_script": "/Users/cfraser/Repos/homelab/ralph/photo-sync/verify-ready-for-iteration5.sh",
+    "recommended_path": "Do both actions in parallel for fastest completion",
+    "estimated_total_time_minutes": {
+      "parallel": 15,
+      "sequential": 20
+    }
+  },
+
+  "technical_notes": {
+    "pvc_pending_status": "Normal behavior with WaitForFirstConsumer binding mode - PVCs will bind when first pod uses them",
+    "storage_class_behavior": "local-path storage with WaitForFirstConsumer delays binding until pod is scheduled",
+    "authentication_lifetime": "iCloud sessions last approximately 90 days before re-authentication required",
+    "ingress_pattern": "Follow mealie.coultonf.com pattern - nginx ingress, HTTP only (no TLS)"
+  },
+
+  "validation_commands": {
+    "check_infrastructure": "kubectl get all,pvc,cm,secret,sa -n photo-sync",
+    "check_cronjob": "kubectl get cronjob -n photo-sync icloudpd-sync",
+    "check_credentials": "kubectl get secret -n photo-sync icloud-credentials -o jsonpath='{.data.username}' | base64 -d",
+    "check_immich": "kubectl get deployments -A | grep immich",
+    "check_reference_ingress": "kubectl get ingress -n mealie mealie-ingress",
+    "run_verification_script": "/Users/cfraser/Repos/homelab/ralph/photo-sync/verify-ready-for-iteration5.sh"
+  },
+
+  "next_context_instructions": {
+    "first_action": "Read /Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_6_STATE.json",
+    "second_action": "Verify user has completed actions by checking blocker verification commands",
+    "if_immich_installed": "Proceed with Iteration 5 - Immich Integration",
+    "if_immich_not_installed": "Report status and wait for user to install Immich",
+    "key_files_to_reference": [
+      "ITERATION_6_CONTEXT_STATUS.md for full context",
+      "USER_ACTION_REQUIRED.md for user action status",
+      "reference-mealie-ingress.yaml for Iteration 6 template"
+    ]
+  }
+}

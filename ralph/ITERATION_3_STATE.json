@@ -1,0 +1,343 @@
+{
+  "ralph_loop": {
+    "iteration": 3,
+    "context": "fresh_start",
+    "date": "2026-01-18",
+    "status": "authentication_incomplete"
+  },
+
+  "critical_finding": {
+    "issue": "Authentication documented as complete but actually incomplete",
+    "previous_claim": "Authentication completed successfully (Iteration 2)",
+    "actual_state": "Auth pod running but waiting for user input",
+    "evidence": {
+      "config_directory": "empty",
+      "session_files": "none",
+      "pod_status": "Running (waiting for interactive input)"
+    },
+    "resolution": "User must complete interactive 2FA authentication"
+  },
+
+  "current_state": {
+    "infrastructure_status": "deployed_auth_pending",
+    "iterations_completed": [1, 2],
+    "iterations_in_progress": [3],
+    "iterations_pending": [4, 5, 6, 7],
+    "authentication_status": "waiting_for_user_input",
+    "immich_status": "not_installed",
+    "current_blockers": [
+      "interactive_2fa_required",
+      "immich_not_installed"
+    ],
+    "next_action": "user_must_complete_2fa",
+    "progress_percentage": 29
+  },
+
+  "cluster_verified": {
+    "timestamp": "2026-01-18T12:30:00Z",
+    "namespace": {
+      "name": "photo-sync",
+      "status": "Active",
+      "verified": true
+    },
+    "pvcs": [
+      {
+        "name": "icloud-photos",
+        "status": "Pending",
+        "size": "100Gi",
+        "access_mode": "RWO",
+        "storage_class": "local-path",
+        "note": "WaitForFirstConsumer - will bind when first pod uses it"
+      },
+      {
+        "name": "icloudpd-config",
+        "status": "Bound",
+        "size": "1Gi",
+        "access_mode": "RWO",
+        "storage_class": "local-path",
+        "volume": "pvc-cab8e83a-df0b-468a-b162-90482a1ff14a",
+        "contents": "empty - no session files yet",
+        "note": "Mounted to auth pod but authentication not completed"
+      }
+    ],
+    "cronjob": {
+      "name": "icloudpd-sync",
+      "schedule": "0 3 1 * *",
+      "timezone": "America/Edmonton",
+      "suspend": false,
+      "active": 0,
+      "last_schedule": "none",
+      "status": "configured_but_cannot_run_without_auth"
+    },
+    "pods": [
+      {
+        "name": "icloudpd-auth",
+        "status": "Running",
+        "ready": "1/1",
+        "age": "~2m",
+        "ip": "10.244.0.66",
+        "node": "talos-1ca-62z",
+        "stdin": true,
+        "tty": true,
+        "command": "/opt/icloudpd/bin/icloudpd --username $(cat /credentials/username) --cookie-directory /config --auth-only && sleep 3600",
+        "note": "Waiting for user to attach and complete 2FA"
+      }
+    ],
+    "credentials": {
+      "secret_name": "icloud-credentials",
+      "apple_id": "cjrfraser@gmail.com",
+      "exists": true
+    },
+    "configmap": {
+      "name": "icloudpd-config",
+      "exists": true,
+      "data_keys": 7
+    },
+    "serviceaccount": {
+      "name": "icloudpd",
+      "exists": true
+    }
+  },
+
+  "authentication_details": {
+    "status": "incomplete",
+    "pod_name": "icloudpd-auth",
+    "pod_state": "running_waiting_for_input",
+    "config_directory": "/config/",
+    "config_contents": [],
+    "expected_after_auth": [
+      "session cookies",
+      "authentication token",
+      "possibly .icloud directory"
+    ],
+    "user_action_required": {
+      "step_1": "kubectl attach -it icloudpd-auth -n photo-sync",
+      "step_2": "Enter Apple ID password when prompted",
+      "step_3": "Enter 2FA code from trusted device",
+      "step_4": "Wait for 'Authentication successful!' message",
+      "step_5": "Verify session files: kubectl exec -n photo-sync icloudpd-auth -- ls -la /config/",
+      "step_6": "Delete auth pod: kubectl delete pod icloudpd-auth -n photo-sync"
+    },
+    "estimated_time": "5 minutes",
+    "notes": [
+      "Session persists in PVC after pod deletion",
+      "CronJob will use saved session without requiring 2FA",
+      "Sessions typically last ~90 days before re-auth needed"
+    ]
+  },
+
+  "immich_status": {
+    "installed": false,
+    "namespace_exists": false,
+    "verified_by": [
+      "kubectl get namespace immich → NotFound",
+      "kubectl get deployments -A | grep immich → no output"
+    ],
+    "blocking_iterations": [5, 6, 7],
+    "user_action_required": "Install Immich after authentication complete"
+  },
+
+  "blockers": {
+    "primary": {
+      "id": "authentication_incomplete",
+      "severity": "critical",
+      "issue": "iCloud 2FA authentication not completed",
+      "affects_iterations": [3, 4, 5, 6, 7],
+      "resolution_required": "User must interactively complete authentication",
+      "resolution_steps": "See authentication_details.user_action_required above",
+      "estimated_time": "5 minutes",
+      "blocking": true
+    },
+    "secondary": {
+      "id": "immich_not_installed",
+      "severity": "critical",
+      "issue": "Immich is not installed on the cluster",
+      "affects_iterations": [5, 6, 7],
+      "resolution_required": "User must install Immich",
+      "resolution_options": [
+        {
+          "method": "helm",
+          "recommended": true,
+          "commands": [
+            "helm repo add immich https://immich-app.github.io/immich-charts",
+            "helm repo update",
+            "kubectl create namespace immich",
+            "helm install immich immich/immich -n immich",
+            "kubectl wait --for=condition=Ready pods --all -n immich --timeout=600s"
+          ],
+          "verification": "kubectl get pods -n immich",
+          "estimated_time": "10 minutes"
+        }
+      ],
+      "blocking": true
+    }
+  },
+
+  "iteration_3_summary": {
+    "tasks_completed": [
+      "Read previous iteration documentation",
+      "Verified actual cluster state",
+      "Discovered authentication discrepancy",
+      "Analyzed auth pod configuration",
+      "Identified interactive input requirement",
+      "Documented current state accurately",
+      "Created user action guide",
+      "Verified Immich not installed"
+    ],
+    "discrepancies_found": [
+      {
+        "claim": "Iteration 2 stated authentication completed successfully",
+        "reality": "Auth pod waiting for user input, no session files exist",
+        "impact": "Cannot proceed to automated syncs without completing auth"
+      }
+    ],
+    "time_spent": "5 minutes",
+    "errors_encountered": "none",
+    "files_created": [
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_3_STATUS.md",
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_3_STATE.json"
+    ]
+  },
+
+  "next_iteration_requirements": {
+    "iteration_3_completion": {
+      "name": "Complete iCloud Authentication",
+      "blocked": true,
+      "blocked_by": "user_action_required",
+      "prerequisites": [
+        "User must be available to enter password and 2FA code",
+        "User must have access to trusted device for 2FA"
+      ],
+      "user_tasks": [
+        "kubectl attach -it icloudpd-auth -n photo-sync",
+        "Enter Apple ID password: [user types]",
+        "Enter 2FA code: [user types]",
+        "Verify authentication successful",
+        "Verify session files created"
+      ],
+      "success_criteria": [
+        "Session files exist in /config/",
+        "Auth pod can be deleted",
+        "CronJob ready to use saved session"
+      ],
+      "estimated_time": "5 minutes"
+    },
+    "iteration_4": {
+      "name": "Install Immich",
+      "blocked": true,
+      "blocked_by": "user_action_required",
+      "prerequisites": [
+        "Iteration 3 complete (authentication done)",
+        "Helm installed on user's machine"
+      ],
+      "user_tasks": [
+        "helm repo add immich https://immich-app.github.io/immich-charts",
+        "helm repo update",
+        "kubectl create namespace immich",
+        "helm install immich immich/immich -n immich",
+        "Wait for pods to be ready"
+      ],
+      "success_criteria": [
+        "Immich namespace exists",
+        "All Immich pods running",
+        "Immich services accessible internally"
+      ],
+      "estimated_time": "10 minutes"
+    },
+    "iteration_5": {
+      "name": "Immich Integration",
+      "blocked": true,
+      "blocked_by": ["iteration_3", "iteration_4"],
+      "prerequisites": [
+        "Authentication complete",
+        "Immich installed and running"
+      ],
+      "automated_tasks": [
+        "Patch Immich deployment to mount icloud-photos PVC",
+        "Configure External Library in Immich",
+        "Trigger initial scan",
+        "Verify photos indexed"
+      ],
+      "estimated_time": "15 minutes"
+    },
+    "iteration_6": {
+      "name": "External Network Exposure",
+      "blocked": true,
+      "blocked_by": ["iteration_5"],
+      "estimated_time": "10 minutes"
+    },
+    "iteration_7": {
+      "name": "End-to-End Verification",
+      "blocked": true,
+      "blocked_by": ["iteration_6"],
+      "estimated_time": "30 minutes"
+    }
+  },
+
+  "user_actions_required": {
+    "immediate_priority_1": {
+      "priority": "CRITICAL",
+      "action": "Complete iCloud 2FA Authentication",
+      "blocking": true,
+      "estimated_time": "5 minutes",
+      "commands": [
+        "kubectl attach -it icloudpd-auth -n photo-sync",
+        "[Enter password when prompted]",
+        "[Enter 2FA code when prompted]",
+        "kubectl exec -n photo-sync icloudpd-auth -- ls -la /config/",
+        "kubectl delete pod icloudpd-auth -n photo-sync"
+      ]
+    },
+    "immediate_priority_2": {
+      "priority": "CRITICAL",
+      "action": "Install Immich",
+      "blocking": true,
+      "estimated_time": "10 minutes",
+      "commands": [
+        "helm repo add immich https://immich-app.github.io/immich-charts",
+        "helm repo update",
+        "kubectl create namespace immich",
+        "helm install immich immich/immich -n immich",
+        "kubectl wait --for=condition=Ready pods --all -n immich --timeout=600s"
+      ]
+    }
+  },
+
+  "progress_tracking": {
+    "total_iterations": 7,
+    "completed": 2,
+    "in_progress": 1,
+    "pending": 4,
+    "percentage": 29,
+    "estimated_time_remaining": {
+      "user_actions": "15 minutes",
+      "automated_tasks": "55 minutes",
+      "total": "70 minutes"
+    }
+  },
+
+  "technical_notes": {
+    "auth_pod_behavior": "Pod will sleep for 1 hour after successful auth, then exit. This keeps session files in PVC.",
+    "session_persistence": "Session files in PVC persist after pod deletion. CronJob mounts same PVC and uses saved session.",
+    "pvc_binding": "icloud-photos PVC still Pending - normal for WaitForFirstConsumer. Will bind when CronJob or Immich pod uses it.",
+    "documentation_accuracy": "Previous iteration documentation was aspirational. This iteration provides verified actual state."
+  },
+
+  "next_context_instructions": {
+    "step_1": "Read this state file: /Users/cfraser/Repos/homelab/ralph/ITERATION_3_STATE.json",
+    "step_2": "Check auth status: kubectl exec -n photo-sync icloudpd-auth -- ls -la /config/ 2>/dev/null || echo 'Auth pod deleted - check for session completion'",
+    "step_3": "Check Immich: kubectl get namespace immich && kubectl get pods -n immich",
+    "step_4_if_both_complete": "Proceed to Iteration 5 (Immich Integration)",
+    "step_4_if_incomplete": "Report status and wait for user actions"
+  },
+
+  "repository_info": {
+    "repo_url": "https://github.com/CoultonF/homelab",
+    "local_path": "/Users/cfraser/Repos/homelab/",
+    "main_branch": "main",
+    "argocd_enabled": true,
+    "talos_linux": true,
+    "single_node": true,
+    "node_tainted": true
+  }
+}

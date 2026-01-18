@@ -1,0 +1,7 @@
+=== CLAUDE EXECUTION START ===
+Iteration: 3
+Timestamp: 2026-01-18 12:27:51
+
+{"type":"result","subtype":"error_during_execution","duration_ms":0,"duration_api_ms":0,"is_error":true,"num_turns":0,"session_id":"8d7347c7-e35e-4bfa-b0e7-5b609a632d78","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0}},"modelUsage":{},"permission_denials":[],"uuid":"ee7ab78c-93c4-413a-af95-ccdbf17e6bd0","errors":["only prompt commands are supported in streaming mode"]}
+
+=== CLAUDE EXECUTION END ===

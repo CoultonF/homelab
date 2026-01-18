@@ -1,0 +1,260 @@
+{
+  "iteration": 4,
+  "status": "complete",
+  "timestamp": "2026-01-18T19:40:00Z",
+  "context": "fresh_window",
+  "summary": "ArgoCD integration complete - photo-sync infrastructure now managed via GitOps",
+
+  "argocd": {
+    "application_name": "photo-sync",
+    "application_namespace": "argocd",
+    "application_path": "/Users/cfraser/Repos/homelab/bootstrap/argocd-apps/photo-sync.yaml",
+    "sync_status": "Synced",
+    "health_status": "Progressing",
+    "revision": "e829dc496d82f3492e041df2d53bbb0c884d2e1e",
+    "auto_sync_enabled": true,
+    "auto_prune_enabled": true,
+    "self_heal_enabled": true,
+    "resources_synced": 7,
+    "resources_healthy": 6,
+    "resources_progressing": 1
+  },
+
+  "git": {
+    "repository": "https://github.com/CoultonF/homelab",
+    "branch": "master",
+    "app_directory": "apps/photo-sync",
+    "commits": [
+      {
+        "sha": "6252232",
+        "message": "Add iCloud to Immich photo sync infrastructure",
+        "files_changed": 9,
+        "pushed": true
+      },
+      {
+        "sha": "e829dc4",
+        "message": "Fix photo-sync ArgoCD app to use master branch",
+        "files_changed": 1,
+        "pushed": true
+      }
+    ]
+  },
+
+  "kubernetes": {
+    "namespace": "photo-sync",
+    "resources": {
+      "namespace": {
+        "name": "photo-sync",
+        "status": "Active",
+        "argocd_synced": true
+      },
+      "pvcs": [
+        {
+          "name": "icloud-photos",
+          "size": "100Gi",
+          "storage_class": "local-path",
+          "access_mode": "ReadWriteOnce",
+          "status": "Pending",
+          "binding_mode": "WaitForFirstConsumer",
+          "argocd_synced": true,
+          "note": "Will bind when first pod mounts it"
+        },
+        {
+          "name": "icloudpd-config",
+          "size": "1Gi",
+          "storage_class": "local-path",
+          "access_mode": "ReadWriteOnce",
+          "status": "Bound",
+          "volume": "pvc-cab8e83a-df0b-468a-b162-90482a1ff14a",
+          "argocd_synced": true
+        }
+      ],
+      "secret": {
+        "name": "icloud-credentials",
+        "type": "Opaque",
+        "data_keys": ["username"],
+        "apple_id": "cjrfraser@gmail.com",
+        "argocd_synced": true
+      },
+      "configmap": {
+        "name": "icloudpd-config",
+        "data_keys": [
+          "download_path",
+          "folder_structure",
+          "until_found",
+          "set_exif_datetime",
+          "auto_delete",
+          "skip_live_photos",
+          "skip_videos"
+        ],
+        "argocd_synced": true
+      },
+      "serviceaccount": {
+        "name": "icloudpd",
+        "automount_token": false,
+        "argocd_synced": true
+      },
+      "cronjob": {
+        "name": "icloudpd-sync",
+        "schedule": "0 3 1 * *",
+        "timezone": "America/Edmonton",
+        "concurrency_policy": "Forbid",
+        "successful_jobs_history": 3,
+        "failed_jobs_history": 3,
+        "active_deadline_seconds": 86400,
+        "backoff_limit": 3,
+        "image": "boredazfcuk/icloudpd:latest",
+        "argocd_synced": true,
+        "last_schedule": null,
+        "next_schedule": "2026-02-01T03:00:00-07:00"
+      }
+    },
+    "orphaned_pods": [
+      {
+        "name": "icloudpd-auth",
+        "status": "Running",
+        "age": "5m",
+        "note": "Auth pod from Iteration 3 - can be deleted after auth confirmed"
+      }
+    ]
+  },
+
+  "files_created": {
+    "argocd_app": "/Users/cfraser/Repos/homelab/bootstrap/argocd-apps/photo-sync.yaml",
+    "app_manifests": [
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/namespace.yaml",
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/pvc-config.yaml",
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/pvc-photos.yaml",
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/secret-icloud-credentials.yaml",
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/configmap-icloudpd.yaml",
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/serviceaccount.yaml",
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/cronjob.yaml",
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/README.md"
+    ],
+    "documentation": [
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_4_SUMMARY.md",
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_4_STATE.json"
+    ]
+  },
+
+  "iterations_status": {
+    "iteration_1": {
+      "name": "Storage Infrastructure",
+      "status": "complete",
+      "completion": "100%"
+    },
+    "iteration_2": {
+      "name": "Credentials & Config",
+      "status": "complete",
+      "completion": "100%"
+    },
+    "iteration_3": {
+      "name": "Initial Authentication",
+      "status": "pending_user_action",
+      "completion": "0%",
+      "blocker": "User must complete 2FA authentication",
+      "estimated_time": "5 minutes"
+    },
+    "iteration_4": {
+      "name": "ArgoCD Integration",
+      "status": "complete",
+      "completion": "100%"
+    },
+    "iteration_5": {
+      "name": "Immich Integration",
+      "status": "blocked",
+      "completion": "0%",
+      "blocker": "Immich not installed on cluster",
+      "estimated_time": "15 minutes after Immich installation"
+    },
+    "iteration_6": {
+      "name": "External Network Exposure",
+      "status": "blocked",
+      "completion": "0%",
+      "blocker": "Depends on Iteration 5",
+      "estimated_time": "10 minutes"
+    },
+    "iteration_7": {
+      "name": "Verification & Testing",
+      "status": "blocked",
+      "completion": "0%",
+      "blocker": "Depends on Iterations 5 & 6",
+      "estimated_time": "30 minutes"
+    }
+  },
+
+  "blockers": [
+    {
+      "priority": "P1",
+      "issue": "iCloud authentication incomplete",
+      "affects": ["cronjob_execution"],
+      "action_required": "User must attach to icloudpd-auth pod and complete 2FA",
+      "estimated_time": "5 minutes",
+      "can_parallel": true,
+      "instructions": "/Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_3_MANUAL_STEPS.md"
+    },
+    {
+      "priority": "P0",
+      "issue": "Immich not installed",
+      "affects": ["iteration_5", "iteration_6", "iteration_7"],
+      "action_required": "User must install Immich on Kubernetes cluster",
+      "estimated_time": "10 minutes",
+      "can_parallel": true,
+      "instructions": "helm repo add immich https://immich-app.github.io/immich-charts && helm install immich immich/immich -n immich --create-namespace"
+    }
+  ],
+
+  "next_steps": {
+    "immediate": [
+      "User completes iCloud 2FA authentication (5 min)",
+      "User installs Immich on cluster (10 min)"
+    ],
+    "after_blockers_resolved": [
+      "Iteration 5: Mount icloud-photos PVC to Immich",
+      "Iteration 5: Configure Immich External Library",
+      "Iteration 6: Create ingress for immich.coultonf.com",
+      "Iteration 7: End-to-end verification and testing"
+    ]
+  },
+
+  "configuration": {
+    "apple_id": "cjrfraser@gmail.com",
+    "sync_schedule": {
+      "cron": "0 3 1 * *",
+      "description": "3 AM on 1st of each month",
+      "timezone": "America/Edmonton"
+    },
+    "storage": {
+      "photos_size": "100Gi",
+      "config_size": "1Gi",
+      "storage_class": "local-path"
+    },
+    "icloudpd": {
+      "image": "boredazfcuk/icloudpd:latest",
+      "folder_structure": "{:%Y/%m}",
+      "until_found": "50",
+      "auto_delete": false
+    }
+  },
+
+  "verification": {
+    "argocd_application_exists": true,
+    "argocd_sync_status": "Synced",
+    "all_resources_synced": true,
+    "cronjob_deployed": true,
+    "pvcs_created": true,
+    "secret_exists": true,
+    "configmap_exists": true,
+    "git_pushed": true,
+    "ready_for_iteration_5": false,
+    "ready_for_iteration_5_reason": "Immich not installed"
+  },
+
+  "progress": {
+    "overall_completion": "57%",
+    "iterations_complete": 4,
+    "iterations_total": 7,
+    "iterations_blocked": 3,
+    "user_actions_required": 2
+  }
+}

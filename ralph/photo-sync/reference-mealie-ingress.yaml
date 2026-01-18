@@ -1,0 +1,67 @@
+# Reference: Mealie Ingress Configuration
+# Retrieved from: kubectl get ingress -n mealie mealie-ingress -o yaml
+# Use this as a pattern for creating Immich ingress in Iteration 6
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mealie-ingress
+  namespace: mealie
+  annotations:
+    # Annotations for handling large file uploads and long request times
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: mealie.coultonf.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mealie
+            port:
+              number: 9000
+
+---
+# Suggested Immich Ingress (for Iteration 6)
+# Apply this after Immich is installed and service names are confirmed
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: immich-ingress
+  namespace: immich  # Adjust based on actual Immich namespace
+  annotations:
+    # Set unlimited body size for large photo/video uploads
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    # Optional: Add buffering settings for large uploads
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: immich.coultonf.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: immich-server  # Verify actual service name after install
+            port:
+              number: 3001  # Default Immich port - verify after install
+
+---
+# Notes for Iteration 6:
+# 1. Verify Immich service name: kubectl get svc -n <immich-namespace>
+# 2. Verify Immich service port: kubectl get svc -n <immich-namespace> <service-name> -o yaml
+# 3. Update namespace, service name, and port in the ingress above
+# 4. Apply: kubectl apply -f <this-file>
+# 5. Update DNS: Add A record for immich.coultonf.com pointing to cluster ingress IP
+# 6. Test: curl -I http://immich.coultonf.com

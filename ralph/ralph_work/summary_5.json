@@ -1,0 +1,20 @@
+
+**The photo-sync infrastructure is fully deployed and ready.** Monthly iCloud syncs are configured to run at 3 AM on the 1st of each month.
+
+**To complete the setup**, you need to:
+1. Install Immich (required for storing/viewing photos)
+2. Complete 2FA authentication with iCloud (~5 minutes)
+
+**Both tasks can be done in parallel** (~10 minutes total).
+
+**Start here**: `photo-sync/USER_ACTION_REQUIRED.md`
+
+When these are complete, we'll continue with integrating Immich, exposing it at immich.coultonf.com, and verifying the complete pipeline.
+
+---
+
+**Files persisted**: All state saved to `photo-sync/` directory
+**Ready for next iteration**: When Immich is installed
+**Time to complete user actions**: ~10 minutes
+
+=== CLAUDE EXECUTION END ===

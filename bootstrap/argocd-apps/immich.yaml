@@ -16,26 +16,8 @@ spec:
         env:
           TZ: "America/Edmonton"
 
-        immich:
-          persistence:
-            library:
-              existingClaim: ""
-
-        server:
-          persistence:
-            library:
-              size: 100Gi
-              storageClass: local-path
-              accessMode: ReadWriteOnce
-
         postgresql:
           enabled: true
-          primary:
-            persistence:
-              enabled: true
-              size: 10Gi
-              storageClass: local-path
-              accessMode: ReadWriteOnce
 
         redis:
           enabled: true
