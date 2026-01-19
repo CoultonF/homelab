@@ -43,27 +43,11 @@ spec:
               readOnly: true
           probes:
             liveness:
-              custom: true
-              spec:
-                tcpSocket:
-                  port: 2283
-                initialDelaySeconds: 0
-                periodSeconds: 10
+              enabled: false
             readiness:
-              custom: true
-              spec:
-                tcpSocket:
-                  port: 2283
-                initialDelaySeconds: 0
-                periodSeconds: 10
+              enabled: false
             startup:
-              custom: true
-              spec:
-                tcpSocket:
-                  port: 2283
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                failureThreshold: 30
+              enabled: false
 
         postgresql:
           enabled: true
