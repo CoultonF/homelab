@@ -36,6 +36,11 @@ spec:
           persistence:
             library:
               existingClaim: immich-library
+            icloud-import:
+              enabled: true
+              existingClaim: icloud-photos
+              mountPath: /external/icloud
+              readOnly: true
           probes:
             liveness:
               custom: true
