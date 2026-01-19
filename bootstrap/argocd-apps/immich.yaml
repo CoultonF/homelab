@@ -41,6 +41,12 @@ spec:
               existingClaim: icloud-photos
               mountPath: /external/icloud
               readOnly: true
+          livenessProbe:
+            enabled: false
+          readinessProbe:
+            enabled: false
+          startupProbe:
+            enabled: false
 
         postgresql:
           enabled: true
