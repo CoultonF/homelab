@@ -42,6 +42,23 @@ spec:
         server:
           image:
             tag: v2.4.1
+          env:
+            DB_HOSTNAME:
+              value: "immich-postgres-rw.immich.svc.cluster.local"
+            DB_DATABASE_NAME:
+              value: "immich"
+            DB_USERNAME:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgres-app
+                  key: username
+            DB_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgres-app
+                  key: password
+            TZ:
+              value: "America/Edmonton"
           service:
             main:
               type: NodePort
