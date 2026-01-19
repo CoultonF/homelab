@@ -15,31 +15,23 @@ spec:
     spec:
       containers:
         - name: icloudpd
-          image: icloudpd/icloudpd:latest
+          image: boredazfcuk/icloudpd:latest
           command:
-            - icloudpd
+            - /bin/sh
+            - -c
           args:
-            - --directory
-            - /photos/icloud-import
-            - --username
-            - $(ICLOUD_USERNAME)
-            - --cookie-directory
-            - /config
-            - --password-provider
-            - webui
-            - --mfa-provider
-            - webui
-            - --watch-with-interval
-            - "3600"
-            - --folder-structure
-            - "{:%Y/%m}"
-            - --set-exif-datetime
+            - |
+              /opt/icloudpd/bin/icloudpd \
+                --directory /photos/icloud-import \
+                --username $(cat /credentials/username) \
+                --password $(cat /credentials/password) \
+                --cookie-directory /config \
+                --password-provider webui \
+                --mfa-provider webui \
+                --watch-with-interval 3600 \
+                --folder-structure "{:%Y/%m}" \
+                --set-exif-datetime
           env:
-            - name: ICLOUD_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: icloud-credentials
-                  key: username
             - name: TZ
               value: "America/Edmonton"
           ports:
@@ -47,6 +39,9 @@ spec:
               name: http
               protocol: TCP
           volumeMounts:
+            - name: credentials
+              mountPath: /credentials
+              readOnly: true
             - name: config
               mountPath: /config
             - name: photos
@@ -59,6 +54,9 @@ spec:
               memory: "1Gi"
               cpu: "1000m"
       volumes:
+        - name: credentials
+          secret:
+            secretName: icloud-credentials
         - name: config
           persistentVolumeClaim:
             claimName: icloudpd-config
