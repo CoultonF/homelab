@@ -13,6 +13,8 @@ spec:
     chart: immich
     helm:
       values: |
+        useDeprecatedPostgresChart: true
+
         image:
           tag: v2.4.1
 
