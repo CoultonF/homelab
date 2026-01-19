@@ -17,9 +17,10 @@ spec:
           tag: v2.4.1
 
         env:
-          TZ: "America/Edmonton"
-          DB_HOSTNAME: "immich-postgres-rw.immich.svc.cluster.local"
-          DB_DATABASE_NAME: "immich"
+          DB_HOSTNAME:
+            value: "immich-postgres-rw.immich.svc.cluster.local"
+          DB_DATABASE_NAME:
+            value: "immich"
           DB_USERNAME:
             valueFrom:
               secretKeyRef:
@@ -30,6 +31,8 @@ spec:
               secretKeyRef:
                 name: immich-postgres-app
                 key: password
+          TZ:
+            value: "America/Edmonton"
 
         immich:
           persistence:
