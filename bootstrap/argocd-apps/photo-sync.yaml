@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/CoultonF/homelab
     targetRevision: main
-    path: ralph/photo-sync
+    path: apps/photo-sync
   destination:
     server: https://kubernetes.default.svc
     namespace: photo-sync
