@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: icloudpd-webui-stephanie
+  namespace: photo-sync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: icloudpd-webui-stephanie
+  template:
+    metadata:
+      labels:
+        app: icloudpd-webui-stephanie
+    spec:
+      containers:
+        - name: icloudpd
+          image: boredazfcuk/icloudpd:latest
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              /opt/icloudpd/bin/icloudpd \
+                --directory /photos/stephanie-import \
+                --username $(cat /credentials/username) \
+                --password $(cat /credentials/password) \
+                --cookie-directory /config \
+                --password-provider webui \
+                --mfa-provider webui \
+                --watch-with-interval 3600 \
+                --folder-structure "{:%Y/%m}" \
+                --set-exif-datetime
+          env:
+            - name: TZ
+              value: "America/Edmonton"
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          volumeMounts:
+            - name: credentials
+              mountPath: /credentials
+              readOnly: true
+            - name: config
+              mountPath: /config
+            - name: photos
+              mountPath: /photos
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+      volumes:
+        - name: credentials
+          secret:
+            secretName: icloud-credentials-stephanie
+        - name: config
+          persistentVolumeClaim:
+            claimName: icloudpd-config-stephanie
+        - name: photos
+          persistentVolumeClaim:
+            claimName: icloud-photos
