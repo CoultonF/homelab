@@ -38,11 +38,27 @@ spec:
               existingClaim: immich-library
           probes:
             liveness:
-              enabled: false
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 2283
+                initialDelaySeconds: 0
+                periodSeconds: 10
             readiness:
-              enabled: false
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 2283
+                initialDelaySeconds: 0
+                periodSeconds: 10
             startup:
-              enabled: false
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 2283
+                initialDelaySeconds: 0
+                periodSeconds: 10
+                failureThreshold: 30
 
         postgresql:
           enabled: true
