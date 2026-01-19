@@ -31,18 +31,12 @@ spec:
             library:
               existingClaim: immich-library
           probes:
-            startup:
-              spec:
-                httpGet:
-                  port: 2283
-            readiness:
-              spec:
-                httpGet:
-                  port: 2283
             liveness:
-              spec:
-                httpGet:
-                  port: 2283
+              enabled: false
+            readiness:
+              enabled: false
+            startup:
+              enabled: false
 
         postgresql:
           enabled: true
