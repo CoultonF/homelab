@@ -9,12 +9,12 @@ spec:
   project: default
   source:
     repoURL: https://immich-app.github.io/immich-charts
-    targetRevision: 0.9.1
+    targetRevision: 0.7.2
     chart: immich
     helm:
       values: |
         image:
-          tag: release
+          tag: v1.123.0
 
         env:
           TZ: "America/Edmonton"
@@ -26,7 +26,7 @@ spec:
 
         server:
           image:
-            tag: release
+            tag: v1.123.0
           persistence:
             library:
               existingClaim: immich-library
