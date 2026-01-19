@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: icloudpd-webui
+  namespace: photo-sync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: icloudpd-webui
+  template:
+    metadata:
+      labels:
+        app: icloudpd-webui
+    spec:
+      containers:
+        - name: icloudpd
+          image: icloudpd/icloudpd:latest
+          command:
+            - icloudpd
+          args:
+            - --directory
+            - /photos/icloud-import
+            - --username
+            - $(ICLOUD_USERNAME)
+            - --cookie-directory
+            - /config
+            - --password-provider
+            - webui
+            - --mfa-provider
+            - webui
+            - --watch-with-interval
+            - "3600"
+            - --folder-structure
+            - "{:%Y/%m}"
+            - --set-exif-datetime
+          env:
+            - name: ICLOUD_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: icloud-credentials
+                  key: username
+            - name: TZ
+              value: "America/Edmonton"
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: photos
+              mountPath: /photos
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: icloudpd-config
+        - name: photos
+          persistentVolumeClaim:
+            claimName: icloud-photos
