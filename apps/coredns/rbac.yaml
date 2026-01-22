@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coredns-tailscale
+  namespace: coredns
+  labels:
+    app.kubernetes.io/name: coredns
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coredns-tailscale
+  namespace: coredns
+  labels:
+    app.kubernetes.io/name: coredns
+rules:
+  # Tailscale needs to create/update secrets for state persistence
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coredns-tailscale
+  namespace: coredns
+  labels:
+    app.kubernetes.io/name: coredns
+subjects:
+  - kind: ServiceAccount
+    name: coredns-tailscale
+    namespace: coredns
+roleRef:
+  kind: Role
+  name: coredns-tailscale
+  apiGroup: rbac.authorization.k8s.io
