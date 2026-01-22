@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: upsnap
+  namespace: upsnap
+  labels:
+    app.kubernetes.io/name: upsnap
+    app.kubernetes.io/component: wake-on-lan
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: upsnap
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: upsnap
+        app.kubernetes.io/component: wake-on-lan
+    spec:
+      # Allow scheduling on control-plane nodes (single-node cluster)
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+      # Host network required to send Wake-on-LAN magic packets on L2
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: upsnap
+          image: ghcr.io/seriousm4x/upsnap:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8090
+              protocol: TCP
+          env:
+            # Timezone (adjust as needed)
+            - name: TZ
+              value: "America/Vancouver"
+            # UpSnap configuration
+            - name: UPSNAP_INTERVAL
+              value: "@every 10s"
+            - name: UPSNAP_SCAN_RANGE
+              value: "192.168.0.0/24"
+            # Ping timeout for device status checks
+            - name: UPSNAP_PING_TIMEOUT
+              value: "500ms"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: data
+              mountPath: /app/pb_data
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: upsnap-data-pvc
