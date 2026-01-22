@@ -68,11 +68,9 @@ spec:
           ports:
             - name: dns
               containerPort: 53
-              hostPort: 53
               protocol: UDP
             - name: dns-tcp
               containerPort: 53
-              hostPort: 53
               protocol: TCP
             - name: metrics
               containerPort: 9153
@@ -123,7 +121,10 @@ spec:
             type: CharDevice
         - name: tailscale-state
           emptyDir: {}
-      dnsPolicy: Default
+      # Use host network so Tailscale sidecar can reach Kubernetes API
+      # CoreDNS already uses hostPort so this is compatible
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
