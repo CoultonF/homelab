@@ -50,7 +50,7 @@ spec:
               value: "tailscale-state"
             # Hostname in Tailscale admin console
             - name: TS_HOSTNAME
-              value: "talos-subnet-router"
+              value: "upsnap"
             # Accept DNS from Tailscale (optional, disable if using local DNS)
             - name: TS_ACCEPT_DNS
               value: "false"
@@ -60,6 +60,25 @@ spec:
             # State directory
             - name: TS_STATE_DIR
               value: "/var/lib/tailscale"
+            # Tailscale Serve config - HTTPS proxy to UpSnap
+            - name: TS_SERVE_CONFIG
+              value: |
+                {
+                  "TCP": {
+                    "443": {
+                      "HTTPS": true
+                    }
+                  },
+                  "Web": {
+                    "upsnap.tail05edf2.ts.net:443": {
+                      "Handlers": {
+                        "/": {
+                          "Proxy": "http://127.0.0.1:8090"
+                        }
+                      }
+                    }
+                  }
+                }
           securityContext:
             capabilities:
               add:
