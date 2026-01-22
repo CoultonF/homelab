@@ -112,10 +112,7 @@ spec:
                 path: Corefile
         - name: tailscale-state
           emptyDir: {}
-      # Use host network so Tailscale sidecar can reach Kubernetes API
-      # CoreDNS already uses hostPort so this is compatible
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      dnsPolicy: ClusterFirst
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
