@@ -36,8 +36,12 @@ spec:
               value: "dns"
             - name: TS_USERSPACE
               value: "false"
+            - name: TS_TUNNAME
+              value: "ts-dns"
+            - name: TS_SOCKET
+              value: "/tmp/tailscaled-dns.sock"
             - name: TS_KUBE_SECRET
-              value: "tailscale-state"
+              value: "tailscale-dns-state"
             - name: TS_ACCEPT_DNS
               value: "false"
             - name: TS_STATE_DIR
