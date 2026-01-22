@@ -35,11 +35,7 @@ spec:
             - name: TS_HOSTNAME
               value: "dns"
             - name: TS_USERSPACE
-              value: "false"
-            - name: TS_TAILSCALED_EXTRA_ARGS
-              value: "--tun=ts-dns"
-            - name: TS_SOCKET
-              value: "/tmp/tailscaled-dns.sock"
+              value: "true"
             - name: TS_KUBE_SECRET
               value: "tailscale-dns-state"
             - name: TS_ACCEPT_DNS
@@ -47,11 +43,8 @@ spec:
             - name: TS_STATE_DIR
               value: "/var/lib/tailscale"
           securityContext:
-            capabilities:
-              add:
-                - NET_ADMIN
-                - NET_RAW
-            privileged: true
+            runAsUser: 1000
+            runAsGroup: 1000
           resources:
             requests:
               cpu: 10m
@@ -60,8 +53,6 @@ spec:
               cpu: 200m
               memory: 128Mi
           volumeMounts:
-            - name: dev-net-tun
-              mountPath: /dev/net/tun
             - name: tailscale-state
               mountPath: /var/lib/tailscale
         - name: coredns
@@ -119,10 +110,6 @@ spec:
             items:
               - key: Corefile
                 path: Corefile
-        - name: dev-net-tun
-          hostPath:
-            path: /dev/net/tun
-            type: CharDevice
         - name: tailscale-state
           emptyDir: {}
       # Use host network so Tailscale sidecar can reach Kubernetes API
