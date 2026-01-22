@@ -60,25 +60,9 @@ spec:
             # State directory
             - name: TS_STATE_DIR
               value: "/var/lib/tailscale"
-            # Tailscale Serve config - HTTPS proxy to UpSnap
+            # Tailscale Serve config file path
             - name: TS_SERVE_CONFIG
-              value: |
-                {
-                  "TCP": {
-                    "443": {
-                      "HTTPS": true
-                    }
-                  },
-                  "Web": {
-                    "upsnap.tail05edf2.ts.net:443": {
-                      "Handlers": {
-                        "/": {
-                          "Proxy": "http://127.0.0.1:8090"
-                        }
-                      }
-                    }
-                  }
-                }
+              value: "/config/serve.json"
           securityContext:
             capabilities:
               add:
@@ -97,6 +81,9 @@ spec:
               mountPath: /dev/net/tun
             - name: tailscale-state
               mountPath: /var/lib/tailscale
+            - name: config
+              mountPath: /config
+              readOnly: true
       volumes:
         - name: dev-net-tun
           hostPath:
@@ -104,3 +91,6 @@ spec:
             type: CharDevice
         - name: tailscale-state
           emptyDir: {}
+        - name: config
+          configMap:
+            name: tailscale-config
