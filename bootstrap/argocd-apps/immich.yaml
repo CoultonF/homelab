@@ -13,52 +13,69 @@ spec:
     chart: immich
     helm:
       values: |
-        image:
-          tag: v2.5.0
-
-        env:
-          DB_HOSTNAME:
-            value: "immich-postgres-rw.immich.svc.cluster.local"
-          DB_DATABASE_NAME:
-            value: "immich"
-          DB_USERNAME:
-            valueFrom:
-              secretKeyRef:
-                name: immich-postgres-app
-                key: username
-          DB_PASSWORD:
-            valueFrom:
-              secretKeyRef:
-                name: immich-postgres-app
-                key: password
-          TZ:
-            value: "America/Edmonton"
+        controllers:
+          main:
+            containers:
+              main:
+                image:
+                  tag: v2.5.0
+                env:
+                  DB_HOSTNAME: "immich-postgres-rw.immich.svc.cluster.local"
+                  DB_DATABASE_NAME: "immich"
+                  DB_USERNAME:
+                    valueFrom:
+                      secretKeyRef:
+                        name: immich-postgres-app
+                        key: username
+                  DB_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: immich-postgres-app
+                        key: password
+                  TZ: "America/Edmonton"
 
         immich:
           persistence:
             library:
               existingClaim: immich-library
 
+        valkey:
+          enabled: true
+
         server:
-          image:
-            tag: v2.5.0
-          env:
-            DB_HOSTNAME:
-              value: "immich-postgres-rw.immich.svc.cluster.local"
-            DB_DATABASE_NAME:
-              value: "immich"
-            DB_USERNAME:
-              valueFrom:
-                secretKeyRef:
-                  name: immich-postgres-app
-                  key: username
-            DB_PASSWORD:
-              valueFrom:
-                secretKeyRef:
-                  name: immich-postgres-app
-                  key: password
-            TZ:
-              value: "America/Edmonton"
+          controllers:
+            main:
+              containers:
+                main:
+                  probes:
+                    liveness:
+                      enabled: true
+                      custom: true
+                      spec:
+                        httpGet:
+                          path: /api/server/ping
+                          port: 2283
+                        initialDelaySeconds: 0
+                        periodSeconds: 10
+                    readiness:
+                      enabled: true
+                      custom: true
+                      spec:
+                        httpGet:
+                          path: /api/server/ping
+                          port: 2283
+                        initialDelaySeconds: 0
+                        periodSeconds: 10
+                    startup:
+                      enabled: true
+                      custom: true
+                      spec:
+                        httpGet:
+                          path: /api/server/ping
+                          port: 2283
+                        initialDelaySeconds: 0
+                        periodSeconds: 10
+                        failureThreshold: 30
           service:
             main:
               type: NodePort
@@ -67,51 +84,7 @@ spec:
                   port: 3001
                   targetPort: 2283
                   nodePort: 30080
-          persistence:
-            library:
-              existingClaim: immich-library
-            icloud-import:
-              enabled: true
-              existingClaim: icloud-photos
-              mountPath: /external/icloud
-              readOnly: true
-          probes:
-            liveness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /api/server/ping
-                  port: 2283
-                initialDelaySeconds: 0
-                periodSeconds: 10
-            readiness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /api/server/ping
-                  port: 2283
-                initialDelaySeconds: 0
-                periodSeconds: 10
-            startup:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /api/server/ping
-                  port: 2283
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                failureThreshold: 30
 
-        postgresql:
-          enabled: false
-
-        redis:
-          enabled: true
-          image:
-            tag: latest
   destination:
     server: https://kubernetes.default.svc
     namespace: immich

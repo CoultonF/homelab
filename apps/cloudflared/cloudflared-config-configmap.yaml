@@ -22,13 +22,6 @@ data:
       - hostname: photos.coultonf.com
         service: http://immich-server.immich.svc.cluster.local:3001
 
-      # Route photos-auth.coultonf.com to icloudpd web UI
-      - hostname: photos-auth.coultonf.com
-        service: http://icloudpd-webui.photo-sync.svc.cluster.local:8080
-
-      # Route photos-auth-steph.coultonf.com to stephanie's icloudpd web UI
-      - hostname: photos-auth-steph.coultonf.com
-        service: http://icloudpd-webui-stephanie.photo-sync.svc.cluster.local:8080
 
       # Example: Route api.example.com to an API service
       - hostname: api.example.com
