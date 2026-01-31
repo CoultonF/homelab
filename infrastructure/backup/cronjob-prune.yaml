@@ -1,0 +1,80 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-prune
+  namespace: backup
+spec:
+  schedule: "0 4 * * 0"  # Weekly Sunday at 4 AM Mountain
+  timeZone: "America/Edmonton"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 14400  # 4h timeout
+      template:
+        spec:
+          serviceAccountName: restic-backup
+          restartPolicy: OnFailure
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  echo "Applying retention policy..."
+                  restic forget \
+                    --keep-last "$KEEP_LAST" \
+                    --keep-daily "$KEEP_DAILY" \
+                    --keep-weekly "$KEEP_WEEKLY" \
+                    --keep-monthly "$KEEP_MONTHLY" \
+                    --prune \
+                    --verbose
+
+                  echo "Verifying repository integrity..."
+                  restic check
+
+                  echo "Current snapshots after pruning:"
+                  restic snapshots
+              envFrom:
+                - configMapRef:
+                    name: restic-config
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: b2-credentials
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: b2-credentials
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: RESTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: b2-credentials
+                      key: RESTIC_PASSWORD
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              volumeMounts:
+                - name: restic-cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "1Gi"
+                  cpu: "1000m"
+          volumes:
+            - name: restic-cache
+              emptyDir: {}
+          tolerations:
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists

@@ -1,0 +1,137 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-backup
+  namespace: backup
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM Mountain (before icloudpd at 3 AM)
+  timeZone: "America/Edmonton"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 14400  # 4h timeout
+      template:
+        spec:
+          serviceAccountName: restic-backup
+          restartPolicy: OnFailure
+          initContainers:
+            - name: pg-dump
+              image: postgres:15
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  DUMP_DIR="/host-var/lib/mealie-pgdata/backups"
+                  mkdir -p "$DUMP_DIR"
+
+                  echo "Starting pg_dump of mealie database..."
+                  pg_dump \
+                    -h postgres.mealie.svc.cluster.local \
+                    -U mealie \
+                    -d mealie \
+                    -Fc \
+                    -f "$DUMP_DIR/mealie-$(date +%Y%m%d-%H%M%S).dump"
+
+                  echo "Cleaning up old dumps (keeping last 3)..."
+                  ls -t "$DUMP_DIR"/mealie-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -v
+
+                  echo "pg_dump complete. Current dumps:"
+                  ls -lh "$DUMP_DIR"/mealie-*.dump
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: b2-credentials
+                      key: PGPASSWORD
+              volumeMounts:
+                - name: host-var
+                  mountPath: /host-var
+              resources:
+                requests:
+                  memory: "128Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  # Auto-init repo if it doesn't exist yet
+                  if ! restic snapshots --no-lock > /dev/null 2>&1; then
+                    echo "Initializing restic repository..."
+                    restic init
+                  fi
+
+                  echo "Starting backup of $BACKUP_SOURCE..."
+                  restic backup "$BACKUP_SOURCE" \
+                    --exclude-file /etc/restic/excludes.txt \
+                    --verbose
+
+                  echo "Verifying repository integrity..."
+                  restic check
+
+                  echo "Latest snapshots:"
+                  restic snapshots --latest 5
+              envFrom:
+                - configMapRef:
+                    name: restic-config
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: b2-credentials
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: b2-credentials
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: RESTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: b2-credentials
+                      key: RESTIC_PASSWORD
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              volumeMounts:
+                - name: host-var
+                  mountPath: /host-var
+                  readOnly: true
+                - name: restic-cache
+                  mountPath: /cache
+                - name: exclude-file
+                  mountPath: /etc/restic
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "1Gi"
+                  cpu: "1000m"
+          volumes:
+            - name: host-var
+              hostPath:
+                path: /var
+                type: Directory
+            - name: restic-cache
+              emptyDir: {}
+            - name: exclude-file
+              configMap:
+                name: restic-config
+                items:
+                  - key: excludes.txt
+                    path: excludes.txt
+          tolerations:
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
