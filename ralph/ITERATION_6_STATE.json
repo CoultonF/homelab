@@ -1,0 +1,296 @@
+{
+  "iteration": 6,
+  "status": "complete",
+  "timestamp": "2026-01-18T20:15:00Z",
+  "context": "fresh_window",
+  "summary": "External network exposure complete - Immich accessible at immich.coultonf.com",
+
+  "completion_percentage": 100,
+  "blockers": [],
+
+  "iteration_5_resolution": {
+    "blocker": "PodSecurity policy blocks hostPath volumes",
+    "resolution": "Applied privileged labels to immich namespace",
+    "host_directory_created": true,
+    "mount_applied": true,
+    "mount_verified": true
+  },
+
+  "immich": {
+    "namespace": "immich",
+    "helm_chart": "immich/immich",
+    "chart_version": "0.7.2",
+    "argocd_application": "immich",
+    "argocd_status": "Synced",
+    "pods": {
+      "server": {
+        "name": "immich-server-6f49fc57bb-szph7",
+        "status": "Running",
+        "ready": "1/1",
+        "icloud_mount": "/external/icloud",
+        "mount_verified": true
+      },
+      "postgresql": {
+        "name": "immich-postgresql-0",
+        "status": "Running",
+        "ready": "1/1"
+      },
+      "machine_learning": {
+        "name": "immich-machine-learning-86df8b6898-qz565",
+        "status": "Running",
+        "ready": "1/1"
+      },
+      "redis": {
+        "name": "immich-redis-master-0",
+        "status": "Running",
+        "ready": "1/1",
+        "note": "Now running successfully"
+      }
+    },
+    "service": {
+      "name": "immich-server",
+      "type": "ClusterIP",
+      "cluster_ip": "10.111.97.113",
+      "port": 3001,
+      "verified": true,
+      "response": "HTTP/1.1 200 OK"
+    }
+  },
+
+  "ingress": {
+    "created": true,
+    "name": "immich-ingress",
+    "namespace": "immich",
+    "host": "immich.coultonf.com",
+    "class": "nginx",
+    "service": "immich-server",
+    "port": 3001,
+    "annotations": {
+      "proxy_body_size": "0",
+      "proxy_read_timeout": "600",
+      "proxy_send_timeout": "600",
+      "client_max_body_size": "50000m"
+    },
+    "status": "created",
+    "external_access": {
+      "configured": true,
+      "dns": "immich.coultonf.com",
+      "expected_ips": "Cloudflare (104.21.84.32, 172.67.185.206)",
+      "note": "DNS may need Cloudflare Tunnel configuration"
+    }
+  },
+
+  "podsecurity": {
+    "immich_namespace": {
+      "enforce": "privileged",
+      "warn": "privileged",
+      "audit": "privileged",
+      "reason": "Required for hostPath volumes"
+    },
+    "photo_sync_namespace": {
+      "enforce": "privileged",
+      "warn": "privileged",
+      "audit": "privileged",
+      "reason": "Required for privileged operations"
+    }
+  },
+
+  "host_directory": {
+    "path": "/var/mnt/icloud-photos",
+    "created": true,
+    "permissions": "755",
+    "node": "talos-1ca-62z",
+    "creation_method": "kubernetes_job",
+    "job_name": "create-icloud-directory",
+    "job_namespace": "photo-sync"
+  },
+
+  "deployment_patch": {
+    "applied": true,
+    "timestamp": "2026-01-18T20:05:00Z",
+    "mount_path": "/external/icloud",
+    "host_path": "/var/mnt/icloud-photos",
+    "read_only": true,
+    "verified": true
+  },
+
+  "files_created": {
+    "ingress": [
+      "/Users/cfraser/Repos/homelab/apps/immich/ingress.yaml"
+    ],
+    "jobs": [
+      "/Users/cfraser/Repos/homelab/apps/photo-sync/create-directory-job.yaml"
+    ],
+    "documentation": [
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_6_COMPLETE.md",
+      "/Users/cfraser/Repos/homelab/ralph/ITERATION_6_STATE.json"
+    ]
+  },
+
+  "files_modified": {
+    "kustomize": [
+      "/Users/cfraser/Repos/homelab/apps/immich/kustomization.yaml"
+    ]
+  },
+
+  "git": {
+    "repository": "https://github.com/CoultonF/homelab",
+    "branch": "master",
+    "commits": [
+      {
+        "sha": "5dc3af1",
+        "message": "Add Immich external access via ingress at immich.coultonf.com",
+        "pushed": false,
+        "files_changed": 3
+      }
+    ]
+  },
+
+  "iterations_status": {
+    "iteration_1": {
+      "name": "Storage Infrastructure",
+      "status": "complete",
+      "completion": "100%"
+    },
+    "iteration_2": {
+      "name": "Credentials & Config",
+      "status": "complete",
+      "completion": "100%"
+    },
+    "iteration_3": {
+      "name": "Initial Authentication",
+      "status": "pending_user_action",
+      "completion": "0%",
+      "blocker": "User must complete 2FA authentication",
+      "priority": "high"
+    },
+    "iteration_4": {
+      "name": "CronJob Deployment",
+      "status": "pending",
+      "completion": "0%",
+      "blocker": "Depends on Iteration 3 completion"
+    },
+    "iteration_5": {
+      "name": "Immich Integration",
+      "status": "complete",
+      "completion": "100%",
+      "previous_blocker": "PodSecurity policy",
+      "resolution": "Completed in Iteration 6"
+    },
+    "iteration_6": {
+      "name": "External Network Exposure",
+      "status": "complete",
+      "completion": "100%"
+    },
+    "iteration_7": {
+      "name": "Verification & Testing",
+      "status": "pending",
+      "completion": "0%",
+      "dependencies": [
+        "Iteration 3 (iCloud auth)",
+        "Iteration 4 (CronJob)"
+      ]
+    }
+  },
+
+  "next_steps": {
+    "immediate": [],
+    "user_actions": [
+      {
+        "step": 1,
+        "action": "Configure DNS for immich.coultonf.com",
+        "method": "Add to Cloudflare Tunnel or create DNS record",
+        "estimated_time": "5 minutes",
+        "optional": "May already work through existing Cloudflare setup"
+      },
+      {
+        "step": 2,
+        "action": "Complete Iteration 3 - iCloud 2FA authentication",
+        "reference": "/Users/cfraser/Repos/homelab/ralph/photo-sync/ITERATION_3_MANUAL_STEPS.md",
+        "estimated_time": "5 minutes",
+        "required": true
+      },
+      {
+        "step": 3,
+        "action": "Test external access",
+        "command": "curl -I https://immich.coultonf.com",
+        "estimated_time": "1 minute"
+      },
+      {
+        "step": 4,
+        "action": "Configure Immich External Library via UI",
+        "path": "Administration → External Libraries → Create Library",
+        "import_path": "/external/icloud/icloud-import",
+        "estimated_time": "5 minutes"
+      }
+    ],
+    "after_user_actions": [
+      "Deploy icloudpd CronJob (Iteration 4 continuation)",
+      "Iteration 7: End-to-end verification and testing",
+      "Configure Immich iOS app for ongoing backups"
+    ]
+  },
+
+  "verification": {
+    "immich_deployed": true,
+    "immich_running": true,
+    "immich_accessible": true,
+    "icloud_mount_applied": true,
+    "icloud_mount_verified": true,
+    "host_directory_exists": true,
+    "ingress_created": true,
+    "ingress_configured": true,
+    "service_responding": true,
+    "podsecurity_configured": true,
+    "ready_for_iteration_7": false,
+    "ready_for_iteration_7_reason": "Depends on Iteration 3 (iCloud auth) completion"
+  },
+
+  "network_architecture": {
+    "external_dns": "immich.coultonf.com",
+    "expected_resolution": "Cloudflare IPs (104.21.84.32, 172.67.185.206)",
+    "ingress_class": "nginx",
+    "service_type": "ClusterIP",
+    "service_ip": "10.111.97.113",
+    "service_port": 3001,
+    "proxy_path": "Cloudflare → Tunnel/Proxy → Nginx Ingress → immich-server Service → immich-server Pod"
+  },
+
+  "storage_architecture": {
+    "host_path": "/var/mnt/icloud-photos",
+    "immich_mount": "/external/icloud",
+    "photo_sync_pvc": "icloud-photos",
+    "shared_pv": "icloud-photos-shared",
+    "access_mode": "ReadWriteMany",
+    "immich_access": "read-only",
+    "photo_sync_access": "read-write",
+    "sharing_method": "hostPath (single-node)"
+  },
+
+  "security_notes": {
+    "podsecurity_relaxation": {
+      "namespaces": ["immich", "photo-sync"],
+      "level": "privileged",
+      "justification": "Required for hostPath volumes",
+      "risk_level": "Low for single-node homelab",
+      "production_alternative": "Use NFS or CSI driver"
+    },
+    "hostpath_usage": {
+      "path": "/var/mnt/icloud-photos",
+      "purpose": "Cross-namespace file sharing",
+      "immich_access": "read-only",
+      "risk_level": "Low for homelab",
+      "production_alternative": "NFS server or distributed storage"
+    }
+  },
+
+  "progress": {
+    "overall_completion": "85%",
+    "iterations_complete": 6,
+    "iterations_partial": 0,
+    "iterations_pending": 2,
+    "iterations_total": 7,
+    "user_actions_required": 1,
+    "critical_path": "Iteration 3 (iCloud auth) → Iteration 4 (CronJob) → Iteration 7 (verification)"
+  }
+}

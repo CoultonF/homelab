@@ -1,23 +1,49 @@
 apiVersion: v1
-data:
-  config.yaml: "tunnel: baefdc8a-09d0-4432-8998-394b54cda77d\ncredentials-file: /etc/cloudflared/creds/credentials.json\nmetrics:
-    0.0.0.0:2000\nno-autoupdate: true\ningress:\n  # Route test.coultonf.com to nginx
-    example\n  - hostname: test.coultonf.com\n    service: http://nginx-example.default.svc.cluster.local:80\n
-    \ \n  # Route mealie.coultonf.com to Mealie\n  - hostname: mealie.coultonf.com\n
-    \   service: http://mealie.mealie.svc.cluster.local:9000\n  \n  # Example: Route
-    api.example.com to an API service\n  - hostname: api.example.com\n    service:
-    http://api-service.default.svc.cluster.local:8080\n  \n  # Example: Route dashboard.example.com
-    to Kubernetes dashboard\n  - hostname: dashboard.example.com\n    service: https://kubernetes-dashboard.kubernetes-dashboard.svc.cluster.local:443\n
-    \   originRequest:\n      noTLSVerify: true\n  \n  # Example: Route grafana.example.com
-    with path-based routing\n  - hostname: grafana.example.com\n    service: http://grafana.monitoring.svc.cluster.local:3000\n
-    \ \n  # Example: WebSocket service\n  - hostname: ws.example.com\n    service:
-    ws://websocket-service.default.svc.cluster.local:8080\n  \n  # Example: TCP service
-    (like SSH)\n  - hostname: ssh.example.com\n    service: tcp://ssh-service.default.svc.cluster.local:22\n
-    \ \n  # Catch-all rule (must be last)\n  - service: http_status:404\n"
 kind: ConfigMap
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"v1","data":{"config.yaml":"tunnel: baefdc8a-09d0-4432-8998-394b54cda77d\ncredentials-file: /etc/cloudflared/creds/credentials.json\nmetrics: 0.0.0.0:2000\nno-autoupdate: true\ningress:\n  # Route test.coultonf.com to nginx example\n  - hostname: test.coultonf.com\n    service: http://nginx-example.default.svc.cluster.local:80\n  \n  # Route mealie.coultonf.com to Mealie\n  - hostname: mealie.coultonf.com\n    service: http://mealie.mealie.svc.cluster.local:9000\n  \n  # Example: Route api.example.com to an API service\n  - hostname: api.example.com\n    service: http://api-service.default.svc.cluster.local:8080\n  \n  # Example: Route dashboard.example.com to Kubernetes dashboard\n  - hostname: dashboard.example.com\n    service: https://kubernetes-dashboard.kubernetes-dashboard.svc.cluster.local:443\n    originRequest:\n      noTLSVerify: true\n  \n  # Example: Route grafana.example.com with path-based routing\n  - hostname: grafana.example.com\n    service: http://grafana.monitoring.svc.cluster.local:3000\n  \n  # Example: WebSocket service\n  - hostname: ws.example.com\n    service: ws://websocket-service.default.svc.cluster.local:8080\n  \n  # Example: TCP service (like SSH)\n  - hostname: ssh.example.com\n    service: tcp://ssh-service.default.svc.cluster.local:22\n  \n  # Catch-all rule (must be last)\n  - service: http_status:404\n"},"kind":"ConfigMap","metadata":{"annotations":{},"name":"cloudflared-config","namespace":"cloudflared"}}
   name: cloudflared-config
   namespace: cloudflared
+data:
+  config.yaml: |
+    tunnel: baefdc8a-09d0-4432-8998-394b54cda77d
+    credentials-file: /etc/cloudflared/creds/credentials.json
+    metrics: 0.0.0.0:2000
+    no-autoupdate: true
+    ingress:
+      # Route test.coultonf.com to nginx example
+      - hostname: test.coultonf.com
+        service: http://nginx-example.default.svc.cluster.local:80
+
+      # Route mealie.coultonf.com to Mealie
+      - hostname: mealie.coultonf.com
+        service: http://mealie.mealie.svc.cluster.local:9000
+
+      # Route photos.coultonf.com to Immich
+      - hostname: photos.coultonf.com
+        service: http://immich-server.immich.svc.cluster.local:3001
+
+
+      # Example: Route api.example.com to an API service
+      - hostname: api.example.com
+        service: http://api-service.default.svc.cluster.local:8080
+
+      # Example: Route dashboard.example.com to Kubernetes dashboard
+      - hostname: dashboard.example.com
+        service: https://kubernetes-dashboard.kubernetes-dashboard.svc.cluster.local:443
+        originRequest:
+          noTLSVerify: true
+
+      # Example: Route grafana.example.com with path-based routing
+      - hostname: grafana.example.com
+        service: http://grafana.monitoring.svc.cluster.local:3000
+
+      # Example: WebSocket service
+      - hostname: ws.example.com
+        service: ws://websocket-service.default.svc.cluster.local:8080
+
+      # Example: TCP service (like SSH)
+      - hostname: ssh.example.com
+        service: tcp://ssh-service.default.svc.cluster.local:22
+
+      # Catch-all rule (must be last)
+      - service: http_status:404

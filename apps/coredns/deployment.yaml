@@ -7,6 +7,8 @@ metadata:
     app.kubernetes.io/name: coredns
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: coredns
@@ -15,10 +17,44 @@ spec:
       labels:
         app.kubernetes.io/name: coredns
     spec:
+      serviceAccountName: coredns-tailscale
       securityContext:
         seccompProfile:
           type: RuntimeDefault
       containers:
+        # Tailscale sidecar - exposes CoreDNS at dns.tail05edf2.ts.net
+        - name: tailscale
+          image: ghcr.io/tailscale/tailscale:latest
+          imagePullPolicy: Always
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-auth
+                  key: TS_AUTHKEY
+            - name: TS_HOSTNAME
+              value: "dns"
+            - name: TS_USERSPACE
+              value: "true"
+            - name: TS_KUBE_SECRET
+              value: "tailscale-dns-state"
+            - name: TS_ACCEPT_DNS
+              value: "false"
+            - name: TS_STATE_DIR
+              value: "/var/lib/tailscale"
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: tailscale-state
+              mountPath: /var/lib/tailscale
         - name: coredns
           image: coredns/coredns:1.11.1
           args:
@@ -76,7 +112,9 @@ spec:
             items:
               - key: Corefile
                 path: Corefile
-      dnsPolicy: Default
+        - name: tailscale-state
+          emptyDir: {}
+      dnsPolicy: ClusterFirst
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists

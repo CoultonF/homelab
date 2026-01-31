@@ -1,0 +1,32 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: immich-postgres
+  namespace: immich
+spec:
+  instances: 1
+  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
+
+  enableSuperuserAccess: true
+
+  postgresql:
+    shared_preload_libraries:
+      - vectors.so
+    pg_hba:
+      - host all all all scram-sha-256
+
+  bootstrap:
+    initdb:
+      database: immich
+      owner: immich
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS vectors;
+        - CREATE EXTENSION IF NOT EXISTS cube CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;
+
+  storage:
+    size: 10Gi
+    storageClass: local-path
+
+  superuserSecret:
+    name: immich-postgres-superuser

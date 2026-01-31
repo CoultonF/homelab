@@ -7,16 +7,20 @@ metadata:
     app.kubernetes.io/name: coredns
 data:
   Corefile: |
-    # Custom zone for rcom - resolves to local computer
+    # Custom zone for rcom - resolves to macbook via Tailscale
+    # Macbook: coultons-macbook-pro.tail05edf2.ts.net (100.102.170.92)
+    # Supports: app.rcom, *.app.rcom (worktree1.app.rcom, worktree1-api.app.rcom, etc.)
     rcom:53 {
         log
         errors
-        hosts {
-            192.168.0.43 app.rcom
-            192.168.0.43 hmr.app.rcom
-            192.168.0.43 web-api.app.rcom
+        
+        # Wildcard: any subdomain of app.rcom -> macbook
+        template IN A {
+            match "^(.+\.)?app\.rcom\.$"
+            answer "{{ .Name }} 60 IN A 100.102.170.92"
             fallthrough
         }
+        
         # If no match, forward to upstream
         forward . 8.8.8.8 1.1.1.1
     }

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: upsnap
+  namespace: upsnap
+  labels:
+    app.kubernetes.io/name: upsnap
+spec:
+  # Using ClusterIP since pod is on hostNetwork
+  # Access via node IP:8090 directly
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: upsnap
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+      protocol: TCP
