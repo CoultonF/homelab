@@ -44,13 +44,13 @@ data:
         "HS-Client-Longitude": "-114.0719",
     }
 
-    SILVER_SPRINGS_BBOX = {
-        "lat_min": 51.100,
-        "lat_max": 51.135,
-        "lng_min": -114.215,
-        "lng_max": -114.160,
+    SILVER_SPRINGS_COMMUNITY_ID = 31974
+    CALGARY_BBOX = {
+        "lat_min": 50.84,
+        "lat_max": 51.21,
+        "lng_min": -114.32,
+        "lng_max": -113.86,
     }
-    SILVER_SPRINGS_NAME = "silver springs"
 
     STATE = Path("/state/seen.json")
     SMTP_USER = "cjrfraser@gmail.com"
@@ -108,9 +108,9 @@ data:
         r = s.post(
             f"{BASE}/search/mapsearchv3/listing",
             json={
-                "community_id_list": [],
+                "community_id_list": [SILVER_SPRINGS_COMMUNITY_ID],
                 "house_type": ["all"],
-                "area": SILVER_SPRINGS_BBOX,
+                "area": CALGARY_BBOX,
                 "list_type": [1],
                 "listing_days": 0,
                 "sold_days": 0,
@@ -153,11 +153,11 @@ data:
 
 
     def is_silver_springs(house):
-        community = (house.get("community") or "").lower()
-        if SILVER_SPRINGS_NAME in community:
-            return True
-        address = (house.get("address") or "").lower()
-        return SILVER_SPRINGS_NAME in address
+        cid = house.get("community_id") or house.get("community")
+        try:
+            return int(cid) == SILVER_SPRINGS_COMMUNITY_ID
+        except (TypeError, ValueError):
+            return False
 
 
     def normalize(id_listing, house):
