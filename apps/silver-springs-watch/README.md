@@ -6,36 +6,34 @@ Hourly CronJob that emails new Calgary Silver Springs real-estate listings to
 ## How it works
 
 1. CronJob fires at `:05` every hour (America/Edmonton).
-2. Container installs `python3` + `@openai/codex` at startup (~45s cold start).
-3. `codex exec` runs against `/app/PROMPT.md`, which instructs it to query the
-   HouseSigma iOS endpoint and emit a pure-JSON array of current listings.
-4. `watcher.py` parses the JSON, diffs against `/state/seen.json` (PVC-backed),
-   sends a Gmail SMTP email if any IDs are new, then unions the seen-set.
-
-The split (LLM-fetch + deterministic-state) keeps `seen.json` safe from LLM
-drift while letting codex absorb auth + response-shape changes.
+2. `python:3.12-slim` container pip-installs `requests`, runs `watcher.py`.
+3. `watcher.py` calls HouseSigma's `bkv2/api`:
+   - `POST /init/accesstoken/new` for a fresh bearer token.
+   - `POST /auth/user/signin` with email/password + token to issue cookies.
+   - `POST /search/mapsearchv3/list` with a Silver Springs bbox to list properties.
+4. Filters response to Silver Springs by community-name match.
+5. Diffs against `/state/seen.json` (PVC). Emails any new listings via Gmail SMTP.
+6. Persists union of seen + current ids.
 
 ## Bootstrap
 
-ArgoCD will sync the manifests, but the secret is created out-of-band:
+Create the secret out-of-band before Argo syncs the CronJob:
 
 ```sh
+kubectl create namespace silver-springs-watch --dry-run=client -o yaml | kubectl apply -f -
+
+SMTP_PW=$(kubectl get secret mealie-secrets -n mealie -o jsonpath='{.data.smtp-password}' | base64 -d)
+
 kubectl create secret generic silver-springs-secrets \
   -n silver-springs-watch \
-  --from-literal=openai-api-key='sk-...' \
-  --from-literal=smtp-password='<gmail-app-password>' \
-  --from-literal=housesigma-url='https://housesigma.com/api/...' \
-  --from-literal=housesigma-token='<bearer-token>' \
-  --from-literal=silver-springs-area-code='<area-code>'
+  --from-literal=house-sigma-email='<housesigma-account-email>' \
+  --from-literal=house-sigma-password='<housesigma-account-password>' \
+  --from-literal=smtp-password="$SMTP_PW"
 ```
 
-The Gmail app password is the same value already in `mealie-secrets`. To
-retrieve it:
-
-```sh
-kubectl get secret mealie-secrets -n mealie \
-  -o jsonpath='{.data.smtp-password}' | base64 -d
-```
+The `house-sigma-*` values are the same ones in
+`github.com/CoultonF/calgary-home-search` (`.env` vars `HOUSE_SIGMA_EMAIL` /
+`HOUSE_SIGMA_PASSWORD`).
 
 ## Smoke test
 
@@ -47,8 +45,9 @@ kubectl create job --from=cronjob/silver-springs-watch \
 kubectl logs -n silver-springs-watch -l job-name=silver-springs-watch-test -f
 ```
 
-The first run sees an empty `seen.json` and emails every current listing —
-expect a large initial email. Subsequent runs only email net-new listings.
+The first run sees an empty `seen.json` and emails every current Silver
+Springs listing — expect a large initial email. Subsequent runs only email
+net-new listings.
 
 Inspect persisted state:
 
@@ -62,5 +61,16 @@ kubectl exec -n silver-springs-watch "$POD" -- cat /state/seen.json
 
 - `namespace.yaml` — namespace.
 - `pvc.yaml` — 1Gi `local-path` PVC for `seen.json`.
-- `script-configmap.yaml` — `PROMPT.md` (codex instructions) + `watcher.py`.
-- `cronjob.yaml` — hourly CronJob, `node:20-slim` base, runtime-installed deps.
+- `script-configmap.yaml` — `watcher.py`.
+- `cronjob.yaml` — hourly CronJob, `python:3.12-slim` base.
+
+## Notes
+
+- HouseSigma's bbox search returns paginated results. `page_size=50` is enough
+  for a single Calgary neighbourhood; pagination not implemented.
+- Bbox is hard-coded to roughly cover the Silver Springs polygon; results are
+  also community-name filtered as a safety net so neighbouring communities
+  (Scenic Acres, Dalhousie) don't slip in.
+- Gmail app password is shared with `mealie-secrets/smtp-password`.
+- HouseSigma may rotate `HS-Client-Version` periodically; if requests start
+  failing with 4xx, bump `HS-Client-Version` in `watcher.py`.

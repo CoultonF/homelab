@@ -4,89 +4,155 @@ metadata:
   name: watcher-script
   namespace: silver-springs-watch
 data:
-  PROMPT.md: |
-    You are a deterministic data extractor. Do not narrate.
-
-    Task: query the HouseSigma iOS API and return current real-estate listings
-    in the Silver Springs neighbourhood of Calgary.
-
-    Use the following environment values (already exported in your shell):
-      - HOUSESIGMA_URL              base endpoint URL
-      - HOUSESIGMA_TOKEN            bearer token (send as `Authorization: Bearer $HOUSESIGMA_TOKEN`)
-      - SILVER_SPRINGS_AREA_CODE    HouseSigma area code / polygon id for Silver Springs
-
-    Steps:
-      1. Issue an HTTPS GET (use `curl` or any http client available in your sandbox)
-         to $HOUSESIGMA_URL filtered to area $SILVER_SPRINGS_AREA_CODE.
-         Send `Authorization: Bearer $HOUSESIGMA_TOKEN`.
-         Send a realistic iOS User-Agent header.
-      2. Parse the response. Keep only listings in Silver Springs (Calgary, AB).
-      3. Emit ONLY a JSON array on stdout. No markdown, no prose, no code fences.
-         Schema per element:
-           {
-             "id":      string,   // MLS number or HouseSigma listing id (stable per listing)
-             "price":   integer,  // CAD whole dollars
-             "beds":    integer,
-             "baths":   number,   // 2.5 etc
-             "address": string,
-             "url":     string    // canonical HouseSigma listing URL
-           }
-      4. If the API returns an error or zero listings, emit `[]` (an empty JSON array).
-      5. Never invent listings. If you cannot reach the API, emit `[]`.
-
-    Output rule: the FIRST and ONLY non-whitespace content on stdout must be a
-    JSON array. Anything else will cause the surrounding pipeline to fail.
-
   watcher.py: |
     #!/usr/bin/env python3
+    """Hourly Calgary Silver Springs new-listing watcher.
+
+    Auth flow against housesigma.com/bkv2/api:
+      1. POST /init/accesstoken/new        -> bearer token
+      2. POST /auth/user/signin            -> session cookies
+      3. POST /search/mapsearchv3/list     -> listings (Silver Springs bbox)
+
+    Diffs MLS / id_listing values against /state/seen.json (PVC-backed).
+    Mails any net-new listings via Gmail SMTP.
+    """
     import json
     import os
-    import re
     import smtplib
-    import subprocess
     import sys
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
     from pathlib import Path
 
+    import requests
+
+    HS_BASE = "https://housesigma.com/bkv2/api"
+    HS_HEADERS = {
+        "user-agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "origin": "https://housesigma.com",
+        "referer": "https://housesigma.com/",
+        "HS-Client-Type": "desktop_v7",
+        "HS-Client-Version": "7.21.152",
+        "content-type": "application/json",
+    }
+
+    SILVER_SPRINGS_BBOX = {
+        "lat_min": 51.100,
+        "lat_max": 51.135,
+        "lng_min": -114.215,
+        "lng_max": -114.160,
+    }
+    SILVER_SPRINGS_COMMUNITY = "silver springs"
+
     STATE = Path("/state/seen.json")
-    PROMPT = Path("/app/PROMPT.md").read_text()
     SMTP_USER = "cjrfraser@gmail.com"
     SMTP_PASSWORD = os.environ["SMTP_PASSWORD"]
+    HS_EMAIL = os.environ["HOUSE_SIGMA_EMAIL"]
+    HS_PASSWORD = os.environ["HOUSE_SIGMA_PASSWORD"]
 
-    def fetch():
-        result = subprocess.run(
-            ["codex", "exec", "--quiet", PROMPT],
-            capture_output=True, text=True, timeout=180,
+
+    def get_token(session):
+        r = session.post(f"{HS_BASE}/init/accesstoken/new", json={}, timeout=15)
+        r.raise_for_status()
+        token = (r.json().get("data") or {}).get("access_token")
+        if not token:
+            raise RuntimeError(f"no access_token in response: {r.text[:300]}")
+        return token
+
+
+    def signin(session, token):
+        r = session.post(
+            f"{HS_BASE}/auth/user/signin",
+            json={"email": HS_EMAIL, "password": HS_PASSWORD, "token": token},
+            headers={"authorization": f"Bearer {token}"},
+            timeout=15,
+            allow_redirects=False,
         )
-        if result.returncode != 0:
-            sys.stderr.write(f"codex exit {result.returncode}\n{result.stderr}\n")
-            sys.exit(1)
-        match = re.search(r"\[.*\]", result.stdout, re.DOTALL)
-        if not match:
-            sys.stderr.write(f"no JSON array in codex stdout:\n{result.stdout}\n")
-            sys.exit(1)
-        return json.loads(match.group(0))
+        r.raise_for_status()
+        body = r.json()
+        if body.get("status") and str(body["status"]).lower() not in ("ok", "success", "1", "true"):
+            err = body.get("error") or body
+            raise RuntimeError(f"signin rejected: {err}")
+
+
+    def search(session, token, page_num=1, page_size=50):
+        r = session.post(
+            f"{HS_BASE}/search/mapsearchv3/list",
+            json={
+                "community_id_list": [],
+                "house_type": [],
+                "area": SILVER_SPRINGS_BBOX,
+                "page_num": page_num,
+                "page_size": page_size,
+                "province": "AB",
+                "city_id": "Calgary",
+                "type": "list",
+                "lang": "en_US",
+            },
+            headers={"authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+        r.raise_for_status()
+        return ((r.json().get("data") or {}).get("list") or [])
+
+
+    def is_silver_springs(item):
+        community = (item.get("community") or item.get("community_name") or "").lower()
+        if SILVER_SPRINGS_COMMUNITY in community:
+            return True
+        address = (item.get("address") or "").lower()
+        return SILVER_SPRINGS_COMMUNITY in address
+
+
+    def normalize(item):
+        return {
+            "id": str(item.get("id_listing") or item.get("mls_number") or item.get("mls") or ""),
+            "price": item.get("list_price") or item.get("price") or 0,
+            "beds": item.get("bedroom") or item.get("beds") or item.get("bedrooms") or "?",
+            "baths": item.get("bathroom") or item.get("baths") or item.get("bathrooms") or "?",
+            "address": item.get("address") or "",
+            "url": (
+                f"https://housesigma.com/bkv2/landing/rootpage/listing?id_listing={item['id_listing']}"
+                if item.get("id_listing")
+                else ""
+            ),
+        }
+
 
     def load_seen():
         if not STATE.exists():
             return set()
         return set(json.loads(STATE.read_text()))
 
+
     def save_seen(ids):
         STATE.parent.mkdir(parents=True, exist_ok=True)
         STATE.write_text(json.dumps(sorted(ids)))
 
-    def render_email(new_listings):
-        rows = "".join(
-            f'<tr>'
-            f'<td><a href="{l["url"]}">{l["address"]}</a></td>'
-            f'<td>${l["price"]:,}</td>'
-            f'<td>{l["beds"]} bd</td>'
-            f'<td>{l["baths"]} ba</td>'
-            f'</tr>'
-            for l in new_listings
+
+    def fmt_price(p):
+        if isinstance(p, (int, float)) and p:
+            return f"${int(p):,}"
+        return str(p) if p else "?"
+
+
+    def render_row(l):
+        return (
+            "<tr>"
+            f"<td><a href=\"{l['url']}\">{l['address']}</a></td>"
+            f"<td>{fmt_price(l['price'])}</td>"
+            f"<td>{l['beds']} bd</td>"
+            f"<td>{l['baths']} ba</td>"
+            "</tr>"
         )
+
+
+    def render_email(new_listings):
+        rows = "".join(render_row(l) for l in new_listings)
         return (
             "<html><body>"
             f"<p>{len(new_listings)} new Silver Springs listing(s):</p>"
@@ -94,6 +160,7 @@ data:
             "<tr><th>Address</th><th>Price</th><th>Beds</th><th>Baths</th></tr>"
             f"{rows}</table></body></html>"
         )
+
 
     def send_email(html, count):
         msg = MIMEMultipart("alternative")
@@ -106,16 +173,28 @@ data:
             s.login(SMTP_USER, SMTP_PASSWORD)
             s.send_message(msg)
 
+
     def main():
-        current = fetch()
+        session = requests.Session()
+        session.headers.update(HS_HEADERS)
+        token = get_token(session)
+        signin(session, token)
+        raw = search(session, token)
+        listings = [normalize(i) for i in raw if is_silver_springs(i)]
+        listings = [l for l in listings if l["id"]]
         seen = load_seen()
-        new = [l for l in current if l.get("id") and l["id"] not in seen]
+        new = [l for l in listings if l["id"] not in seen]
         if new:
             send_email(render_email(new), len(new))
             print(f"emailed {len(new)} new listing(s)")
         else:
-            print("no new listings")
-        save_seen(seen | {l["id"] for l in current if l.get("id")})
+            print(f"no new listings ({len(listings)} total in Silver Springs bbox)")
+        save_seen(seen | {l["id"] for l in listings})
+
 
     if __name__ == "__main__":
-        main()
+        try:
+            main()
+        except Exception as e:
+            sys.stderr.write(f"watcher failed: {e}\n")
+            sys.exit(1)

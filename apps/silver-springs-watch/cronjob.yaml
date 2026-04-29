@@ -15,7 +15,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 1
-      activeDeadlineSeconds: 600
+      activeDeadlineSeconds: 300
       template:
         metadata:
           labels:
@@ -28,47 +28,35 @@ spec:
               operator: Exists
           containers:
             - name: watcher
-              image: node:20-slim
+              image: python:3.12-slim
               command: ["sh", "-c"]
               args:
                 - |
                   set -e
-                  apt-get update -qq
-                  apt-get install -y -qq python3 python3-requests ca-certificates curl >/dev/null
-                  npm i -g --silent @openai/codex
+                  pip install --quiet --no-cache-dir requests
                   python3 /app/watcher.py
               env:
-                - name: OPENAI_API_KEY
+                - name: HOUSE_SIGMA_EMAIL
                   valueFrom:
                     secretKeyRef:
                       name: silver-springs-secrets
-                      key: openai-api-key
+                      key: house-sigma-email
+                - name: HOUSE_SIGMA_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: silver-springs-secrets
+                      key: house-sigma-password
                 - name: SMTP_PASSWORD
                   valueFrom:
                     secretKeyRef:
                       name: silver-springs-secrets
                       key: smtp-password
-                - name: HOUSESIGMA_URL
-                  valueFrom:
-                    secretKeyRef:
-                      name: silver-springs-secrets
-                      key: housesigma-url
-                - name: HOUSESIGMA_TOKEN
-                  valueFrom:
-                    secretKeyRef:
-                      name: silver-springs-secrets
-                      key: housesigma-token
-                - name: SILVER_SPRINGS_AREA_CODE
-                  valueFrom:
-                    secretKeyRef:
-                      name: silver-springs-secrets
-                      key: silver-springs-area-code
               resources:
                 requests:
                   cpu: 100m
-                  memory: 256Mi
+                  memory: 128Mi
                 limits:
-                  memory: 1Gi
+                  memory: 512Mi
               volumeMounts:
                 - name: script
                   mountPath: /app
