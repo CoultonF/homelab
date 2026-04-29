@@ -8,25 +8,30 @@ data:
     #!/usr/bin/env python3
     """Hourly Calgary Silver Springs new-listing watcher.
 
-    Uses the HouseSigma iOS API at api.housesigma.com. The iOS endpoint
-    accepts a long-lived bearer token (`HOUSE_SIGMA_TOKEN`) and does not
-    require signin, signature, or payload encryption — confirmed by mitmproxy
-    capture of the iOS app's traffic.
+    Talks to the HouseSigma iOS API at api.housesigma.com:
 
-    Endpoints:
-      POST /bkv2/api/search/mapsearchv3/listing  -> clusters/markers with ids
-      POST /bkv2/api/search/mapsearchv3/feature  -> featured listings (incl ml_num)
+      1. POST /init/accesstoken/check                 -> session secret_key
+         (returns {data.secret.secret_key, expired_at})
 
-    Each map item carries:
-      - location {lat, lon}
-      - label    e.g. "D 0.63M" (D=Detached, 0.63M = $630k)
-      - ids      [id_listing, ...]
-      - ml_num   (only on /feature items)
+      2. POST /search/mapsearchv3/listing             -> clusters/markers
+         Plain bearer-token auth, form-encoded body. Filters by
+         (lat1,lat2,lon1,lon2) bbox + listing_days, returns id_listing
+         clusters with no detail fields.
 
-    Per-listing detail (address, beds, baths) lives behind an AES-encrypted
-    endpoint and is intentionally not used here. The email links to the
-    HouseSigma webview where the user can see full details.
+      3. POST /listing/preview/many                   -> full listing data
+         AES-CTR + RSA-OAEP encrypted body. Key = first 16 bytes of
+         secret_key (UTF-8). Counter is RSA-OAEP encrypted with
+         HouseSigma's public RSA key. Response is gzip(json) encrypted
+         with the same AES key/counter. Returns ml_num, id_address,
+         seo_address, community_name, address, price, beds, washrooms,
+         photo_url, etc.
+
+    The watcher then filters preview results by community_name == "Silver
+    Springs", diffs ids against /state/seen.json, and emails new entries
+    with canonical HouseSigma URLs.
     """
+    import base64
+    import gzip
     import json
     import os
     import smtplib
@@ -37,48 +42,105 @@ data:
     from pathlib import Path
 
     import requests
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
     BASE = "https://api.housesigma.com/bkv2/api"
     HS_TOKEN = os.environ["HOUSE_SIGMA_TOKEN"]
     SMTP_PASSWORD = os.environ["SMTP_PASSWORD"]
     SMTP_USER = "cjrfraser@gmail.com"
 
-    HEADERS = {
-        "authorization": f"Bearer {HS_TOKEN}",
-        "hs-client-type": "ios_native",
-        "hs-client-version": "7.35.0",
-        "hs-client-latitude": "51.115",
-        "hs-client-longitude": "-114.190",
-        "hs-client-location-timestamp": str(int(time.time() * 1000)),
-        "user-agent": (
+    PUBKEY_PEM = (
+        b"-----BEGIN PUBLIC KEY-----\n"
+        b"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDQlOcjEbqprurl2xjoEP0QdjGI\n"
+        b"rZhLVn5vzwCorG4+2AtSi4AAHjghSXM//ljqE5rA13gfTc58JvM6I75Dmqr5r5Vv\n"
+        b"o57CAbxBXHsXu5ojtgvb5rOd2lrZeckwJL0Z7euvRsA/FjbFdGMcGeSJ8JoePq+H\n"
+        b"0RFOt285bSb8hVq0LQIDAQAB\n"
+        b"-----END PUBLIC KEY-----\n"
+    )
+
+    SILVER_SPRINGS = {
+        "lat1": 51.135,
+        "lat2": 51.100,
+        "lon1": -114.225,
+        "lon2": -114.170,
+        "zoom": 14.5,
+    }
+    SILVER_SPRINGS_NAME = "Silver Springs"
+    LISTING_DAYS = 7
+
+    BASE_HEADERS = {
+        "User-Agent": (
             "HouseSigma Prod/7.35.0 (com.housesigma.ios; build:253; iOS 26.4.0) "
             "Alamofire/5.6.4"
         ),
+        "Authorization": f"Bearer {HS_TOKEN}",
+        "hs-client-type": "ios_native",
+        "hs-client-version": "7.35.0",
+        "hs-client-latitude": "51.118",
+        "hs-client-longitude": "-114.190",
+        "hs-client-location-timestamp": str(int(time.time() * 1000)),
         "accept-language": "en;q=1.0",
         "accept": "*/*",
-        "content-type": "application/x-www-form-urlencoded; charset=utf-8",
     }
-
-    # Tightened to the Silver Springs polygon (rough bounding rectangle):
-    #   N: ~ Crowchild Trail / 5 Av NW
-    #   S: ~ Bowmont Park / Bow River
-    #   W: ~ Nose Hill Drive
-    #   E: ~ Crowchild Trail
-    SILVER_SPRINGS = {
-        "lat1": 51.128,   # north
-        "lat2": 51.108,   # south
-        "lon1": -114.213, # west
-        "lon2": -114.180, # east
-        "zoom": 15.0,
-    }
-    LISTING_DAYS = 7  # only listings posted in the last N days
 
     STATE = Path("/state/seen.json")
 
 
+    # --- crypto helpers --------------------------------------------------------
+
+    def aes_key(secret):
+        return secret.ljust(16, "*")[:16].encode("utf-8")
+
+
+    def encrypt_payload(secret, payload):
+        key = aes_key(secret)
+        counter = os.urandom(16)
+        plaintext = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        ct = Cipher(algorithms.AES(key), modes.CTR(counter)).encryptor().update(plaintext)
+        pub = serialization.load_pem_public_key(PUBKEY_PEM)
+        rsa_ct = pub.encrypt(
+            counter,
+            padding.OAEP(mgf=padding.MGF1(hashes.SHA1()), algorithm=hashes.SHA1(), label=None),
+        )
+        body = {
+            "ctr": base64.b64encode(rsa_ct).decode("ascii"),
+            "et_payload": base64.b64encode(ct).decode("ascii"),
+        }
+        return body, counter
+
+
+    def decrypt_response(secret, counter, data_b64):
+        key = aes_key(secret)
+        ct = base64.b64decode(data_b64)
+        raw = Cipher(algorithms.AES(key), modes.CTR(counter)).decryptor().update(ct)
+        try:
+            return json.loads(gzip.decompress(raw).decode("utf-8"))
+        except Exception:
+            return json.loads(raw.decode("utf-8"))
+
+
+    # --- API calls -------------------------------------------------------------
+
+    def get_secret(s):
+        r = s.post(
+            f"{BASE}/init/accesstoken/check",
+            headers={**BASE_HEADERS, "content-type": "application/x-www-form-urlencoded; charset=utf-8"},
+            data=f"access_token={HS_TOKEN}&lang=en_US&province=AB",
+            timeout=15,
+        )
+        r.raise_for_status()
+        body = r.json()
+        if not body.get("status"):
+            raise RuntimeError(f"accesstoken/check rejected: {body.get('error')}")
+        secret = ((body.get("data") or {}).get("secret") or {}).get("secret_key")
+        if not secret:
+            raise RuntimeError("no secret_key in accesstoken/check response")
+        return secret
+
+
     def search_form_body(area):
-        # Mirrors the iOS app body — array fields use `key[]=value`.
-        # Built as a list of (k, v) pairs so requests urlencodes them correctly.
         return [
             ("bathroom_min", "0"),
             ("bedroom_range[]", "0"),
@@ -118,106 +180,105 @@ data:
         ]
 
 
-    def fetch_map_items(s, path, area):
-        body = search_form_body(area)
-        r = s.post(f"{BASE}{path}", data=body, headers=HEADERS, timeout=30)
+    def search_cluster_ids(s):
+        r = s.post(
+            f"{BASE}/search/mapsearchv3/listing",
+            headers={**BASE_HEADERS, "content-type": "application/x-www-form-urlencoded; charset=utf-8"},
+            data=search_form_body(SILVER_SPRINGS),
+            timeout=30,
+        )
         r.raise_for_status()
-        resp = r.json()
-        if not resp.get("status"):
-            raise RuntimeError(f"{path} rejected: {resp.get('error')}")
-        data = resp.get("data")
-        # /listing returns {"list": [...]}; /feature returns a list directly
-        if isinstance(data, list):
-            return data
-        return (data or {}).get("list") or []
+        body = r.json()
+        if not body.get("status"):
+            raise RuntimeError(f"mapsearchv3/listing rejected: {body.get('error')}")
+        items = (body.get("data") or {}).get("list") or []
+        ids = []
+        for it in items:
+            cids = it.get("ids") or []
+            if isinstance(cids, str):
+                cids = [cids]
+            for i in cids:
+                if i:
+                    ids.append(str(i))
+        # dedupe preserving order
+        seen = set()
+        unique = []
+        for i in ids:
+            if i not in seen:
+                seen.add(i)
+                unique.append(i)
+        return unique
 
 
-    def collect_listings():
-        # Only /listing — /feature ignores the bbox and returns globally-
-        # featured listings (Ontario noise leaks in for an Alberta watcher).
-        s = requests.Session()
-        merged = {}
-        for item in fetch_map_items(s, "/search/mapsearchv3/listing", SILVER_SPRINGS):
-            ids = item.get("ids") or []
-            if isinstance(ids, str):
-                ids = [ids]
-            for i in ids:
-                if not i:
-                    continue
-                rec = merged.setdefault(i, {"id": i})
-                # Only string labels carry price/type info ("D 0.63M");
-                # cluster labels are integer counts and aren't useful.
-                lbl = item.get("label")
-                if isinstance(lbl, str):
-                    rec["label"] = lbl
-        return list(merged.values())
+    def fetch_previews(s, secret, ids):
+        if not ids:
+            return []
+        ts = str(int(time.time()))
+        payload = {"id_listing": ids, "hs_request_timestamp": ts}
+        body, counter = encrypt_payload(secret, payload)
+        r = s.post(
+            f"{BASE}/listing/preview/many",
+            headers={**BASE_HEADERS, "content-type": "application/json", "Hs-Request-Timestamp": ts},
+            json=body,
+            timeout=30,
+        )
+        r.raise_for_status()
+        env = r.json()
+        if not env.get("status"):
+            raise RuntimeError(f"preview/many rejected: {env.get('error')}")
+        decoded = decrypt_response(secret, counter, env["data"])
+        return decoded.get("houseList") or []
 
 
-    def parse_label_price(label):
-        # Examples: "D 0.63M", "V 0.16M", "S 850K", "O 90K". Cluster items use
-        # an int label (the cluster count); skip those.
-        if not isinstance(label, str):
-            return None
-        parts = label.split()
-        if len(parts) < 2:
-            return None
-        amt = parts[-1]
-        try:
-            if amt.endswith("M"):
-                return int(float(amt[:-1]) * 1_000_000)
-            if amt.endswith("K"):
-                return int(float(amt[:-1]) * 1_000)
-            return int(amt)
-        except ValueError:
-            return None
+    # --- email + state ---------------------------------------------------------
+
+    def canonical_url(item):
+        seo_addr = item.get("seo_address") or "x"
+        seo_muni = item.get("seo_municipality") or "calgary-real-estate"
+        province = (item.get("province") or "AB").lower()
+        id_address = item.get("id_address") or "x"
+        id_listing = item.get("id_listing") or ""
+        return (
+            f"https://housesigma.com/{province}/{seo_muni}/"
+            f"{seo_addr}/home/{id_address}?id_listing={id_listing}"
+        )
 
 
-    def parse_label_type(label):
-        if not isinstance(label, str):
-            return ""
-        parts = label.split()
-        if not parts:
-            return ""
-        return {
-            "D": "Detached",
-            "S": "Semi",
-            "T": "Townhouse",
-            "C": "Condo",
-            "V": "Vacant land",
-            "O": "Other",
-            "R": "Row",
-        }.get(parts[0], parts[0])
+    def fmt_price(item):
+        n = item.get("price_int")
+        if isinstance(n, (int, float)) and n:
+            return f"${int(n):,}"
+        s = item.get("price")
+        return f"${s}" if s else "?"
 
 
-    def render_row(l):
-        # H5 deep-link opens the HouseSigma iOS app via Universal Links
-        # when tapped on iPhone/iPad with the app installed.
-        url = f"https://housesigma.com/h5/en/listing/{l['id']}"
-        price = parse_label_price(l.get("label"))
-        price_s = f"${price:,}" if price else "?"
-        prop_type = parse_label_type(l.get("label")) or "?"
+    def render_row(item):
+        url = canonical_url(item)
+        mls = item.get("ml_num") or item.get("id_listing") or ""
+        addr = item.get("address") or ""
+        kind = item.get("house_type_name") or ""
+        beds = item.get("bedroom_string") or item.get("bedroom") or "?"
+        baths = item.get("washroom") or "?"
         return (
             "<tr>"
-            f"<td>{prop_type}</td>"
-            f"<td>{price_s}</td>"
-            f"<td><a href=\"{url}\">Open in HouseSigma</a></td>"
+            f"<td><a href=\"{url}\">{mls}</a></td>"
+            f"<td>{addr}</td>"
+            f"<td>{kind}</td>"
+            f"<td>{fmt_price(item)}</td>"
+            f"<td>{beds} bd / {baths} ba</td>"
             "</tr>"
         )
 
 
-    def render_email(new_listings):
-        rows = "".join(render_row(l) for l in new_listings)
+    def render_email(items):
+        rows = "".join(render_row(i) for i in items)
         return (
             "<html><body>"
-            f"<p>{len(new_listings)} new Silver Springs listing(s) "
+            f"<p>{len(items)} new Silver Springs listing(s) "
             f"(posted in last {LISTING_DAYS} days):</p>"
             "<table border='1' cellpadding='6' cellspacing='0'>"
-            "<tr><th>Type</th><th>Price</th><th>Link</th></tr>"
+            "<tr><th>MLS</th><th>Address</th><th>Type</th><th>Price</th><th>Beds/Baths</th></tr>"
             f"{rows}</table>"
-            "<p style='font-size:smaller;color:#666'>"
-            "Tap the link from your iPhone/iPad to open the listing in the "
-            "HouseSigma app. MLS number and full address require the app."
-            "</p>"
             "</body></html>"
         )
 
@@ -246,17 +307,28 @@ data:
 
 
     def main():
-        listings = collect_listings()
-        print(f"fetched {len(listings)} listings in Silver Springs bbox")
+        s = requests.Session()
+        secret = get_secret(s)
+        ids = search_cluster_ids(s)
+        print(f"bbox returned {len(ids)} candidate id_listings")
+        if not ids:
+            return
+
+        previews = fetch_previews(s, secret, ids)
+        in_silver = [
+            i for i in previews
+            if (i.get("community_name") or "").strip().lower() == SILVER_SPRINGS_NAME.lower()
+        ]
+        print(f"{len(in_silver)} of {len(previews)} are in {SILVER_SPRINGS_NAME}")
 
         seen = load_seen()
-        new = [l for l in listings if l["id"] not in seen]
+        new = [i for i in in_silver if str(i.get("id_listing")) not in seen]
         if new:
             send_email(render_email(new), len(new))
             print(f"emailed {len(new)} new")
         else:
             print("no new listings")
-        save_seen(seen | {l["id"] for l in listings})
+        save_seen(seen | {str(i.get("id_listing")) for i in in_silver if i.get("id_listing")})
 
 
     if __name__ == "__main__":

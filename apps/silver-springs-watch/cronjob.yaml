@@ -33,7 +33,7 @@ spec:
               args:
                 - |
                   set -e
-                  pip install --quiet --no-cache-dir requests
+                  pip install --quiet --no-cache-dir requests cryptography
                   python3 /app/watcher.py
               env:
                 - name: HOUSE_SIGMA_TOKEN
