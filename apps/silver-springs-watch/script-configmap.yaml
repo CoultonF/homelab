@@ -145,6 +145,8 @@ data:
         r.raise_for_status()
         body = r.json()
         if not body.get("status"):
+            if os.environ.get("DEBUG_COMMUNITIES"):
+                sys.stderr.write(f"detail_v2 {id_listing} status=False error={body.get('error')}\n")
             return None
         house = ((body.get("data") or {}).get("house") or {})
         return house
@@ -241,8 +243,9 @@ data:
             listings.append(normalize(i, house))
 
         if os.environ.get("DEBUG_COMMUNITIES"):
+            print(f"detail_v2 succeeded for {sum(community_counts.values())} of {len(ids)}")
             for c, n in sorted(community_counts.items(), key=lambda x: -x[1]):
-                print(f"  community: {c} ({n})")
+                print(f"  community: {c!r} ({n})")
 
         seen = load_seen()
         new = [l for l in listings if l["id"] not in seen]
