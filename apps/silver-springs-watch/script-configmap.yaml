@@ -147,8 +147,9 @@ data:
 
 
     def parse_label_price(label):
-        # Examples: "D 0.63M", "V 0.16M", "S 850K", "O 90K"
-        if not label:
+        # Examples: "D 0.63M", "V 0.16M", "S 850K", "O 90K". Cluster items use
+        # an int label (the cluster count); skip those.
+        if not isinstance(label, str):
             return None
         parts = label.split()
         if len(parts) < 2:
@@ -165,9 +166,11 @@ data:
 
 
     def parse_label_type(label):
-        if not label:
+        if not isinstance(label, str):
             return ""
         parts = label.split()
+        if not parts:
+            return ""
         return {
             "D": "Detached",
             "S": "Semi",
