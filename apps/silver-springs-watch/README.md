@@ -7,13 +7,20 @@ Hourly CronJob that emails new Calgary Silver Springs real-estate listings to
 
 1. CronJob fires at `:05` every hour (America/Edmonton).
 2. `python:3.12-slim` container pip-installs `requests`, runs `watcher.py`.
-3. `watcher.py` calls HouseSigma's `bkv2/api`:
-   - `POST /init/accesstoken/new` for a fresh bearer token.
-   - `POST /auth/user/signin` with email/password + token to issue cookies.
-   - `POST /search/mapsearchv3/list` with a Silver Springs bbox to list properties.
-4. Filters response to Silver Springs by community-name match.
-5. Diffs against `/state/seen.json` (PVC). Emails any new listings via Gmail SMTP.
-6. Persists union of seen + current ids.
+3. `watcher.py` hits the **HouseSigma iOS API** at `api.housesigma.com`:
+   - `POST /bkv2/api/search/mapsearchv3/listing` (clusters/markers with ids)
+   - `POST /bkv2/api/search/mapsearchv3/feature` (featured listings + MLS)
+4. Auth is a long-lived bearer token (`HOUSE_SIGMA_TOKEN`) captured from the
+   iOS app via mitmproxy. No signin, no signing, no payload encryption.
+5. Filters by Silver Springs lat/lng bbox in the request itself.
+6. Diffs ids against `/state/seen.json` (PVC). Emails any new listings via
+   Gmail SMTP.
+7. Persists union of seen + current ids.
+
+The detailed-listing endpoint (`/listing/preview/many`) is AES-encrypted
+and intentionally not used; the email links to the HouseSigma webview
+(`https://housesigma.com/h5/en/listing/<id>`) where the user can see
+full address / beds / baths / photos.
 
 ## Bootstrap
 
@@ -26,14 +33,14 @@ SMTP_PW=$(kubectl get secret mealie-secrets -n mealie -o jsonpath='{.data.smtp-p
 
 kubectl create secret generic silver-springs-secrets \
   -n silver-springs-watch \
-  --from-literal=house-sigma-email='<housesigma-account-email>' \
-  --from-literal=house-sigma-password='<housesigma-account-password>' \
+  --from-literal=house-sigma-token='<bearer-token-from-ios-app>' \
   --from-literal=smtp-password="$SMTP_PW"
 ```
 
-The `house-sigma-*` values are the same ones in
-`github.com/CoultonF/calgary-home-search` (`.env` vars `HOUSE_SIGMA_EMAIL` /
-`HOUSE_SIGMA_PASSWORD`).
+To recapture the token (e.g. if it rotates), run mitmproxy on a Mac, set
+the iPhone's Wi-Fi proxy to it, install the mitmproxy CA cert, open the
+HouseSigma app, and grab the `Authorization: Bearer …` header value from
+any `api.housesigma.com` request.
 
 ## Smoke test
 
@@ -66,11 +73,12 @@ kubectl exec -n silver-springs-watch "$POD" -- cat /state/seen.json
 
 ## Notes
 
-- HouseSigma's bbox search returns paginated results. `page_size=50` is enough
-  for a single Calgary neighbourhood; pagination not implemented.
-- Bbox is hard-coded to roughly cover the Silver Springs polygon; results are
-  also community-name filtered as a safety net so neighbouring communities
-  (Scenic Acres, Dalhousie) don't slip in.
+- Bbox is hard-coded to cover the Silver Springs polygon (roughly
+  51.105–51.130 lat, -114.215 to -114.165 lon). Tighten in `watcher.py` if
+  neighbouring communities (Scenic Acres, Dalhousie) leak in.
 - Gmail app password is shared with `mealie-secrets/smtp-password`.
-- HouseSigma may rotate `HS-Client-Version` periodically; if requests start
-  failing with 4xx, bump `HS-Client-Version` in `watcher.py`.
+- HouseSigma may rotate the iOS `HS-Client-Version` periodically; if requests
+  start failing with 4xx, bump it in `watcher.py` to match the current
+  iOS app build.
+- The bearer token is long-lived but not infinite — the captured one starts
+  with `20241231...` (Dec 31 2024 issue date). If 4xx returns, recapture.

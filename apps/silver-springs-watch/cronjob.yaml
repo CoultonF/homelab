@@ -36,16 +36,11 @@ spec:
                   pip install --quiet --no-cache-dir requests
                   python3 /app/watcher.py
               env:
-                - name: HOUSE_SIGMA_EMAIL
+                - name: HOUSE_SIGMA_TOKEN
                   valueFrom:
                     secretKeyRef:
                       name: silver-springs-secrets
-                      key: house-sigma-email
-                - name: HOUSE_SIGMA_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: silver-springs-secrets
-                      key: house-sigma-password
+                      key: house-sigma-token
                 - name: SMTP_PASSWORD
                   valueFrom:
                     secretKeyRef:
