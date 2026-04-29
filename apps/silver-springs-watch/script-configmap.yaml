@@ -15,15 +15,20 @@ data:
       4. POST /search/mapsearchv3/listing                      -> clusters of id_listing
       5. POST /listing/info/detail_v2 per id                   -> address/price/beds/baths
     """
+    import hashlib
     import json
     import os
     import smtplib
     import sys
+    import time
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
     from pathlib import Path
+    from urllib.parse import quote_plus
 
     import requests
+
+    API_SALT = "ZckdTeV3kGyZd80q"
 
     BASE = "https://housesigma.com/bkv2/api"
     BASE_HEADERS = {
@@ -104,30 +109,51 @@ data:
             raise RuntimeError(f"signin rejected: {body.get('error')}")
 
 
+    def sign(data, timestamp):
+        # Per test_signed_search.exs:
+        # only top-level scalar values, sorted desc by key, urlencoded as k=v,
+        # joined with '&', lowercased, then md5(joined + timestamp + salt).
+        pairs = []
+        for k, v in data.items():
+            if isinstance(v, bool):
+                continue
+            if not isinstance(v, (str, int, float)):
+                continue
+            pairs.append((str(k), str(v)))
+        pairs.sort(key=lambda p: p[0], reverse=True)
+        joined = "&".join(f"{quote_plus(k)}={quote_plus(v)}" for k, v in pairs).lower()
+        plaintext = joined + timestamp + API_SALT
+        return hashlib.md5(plaintext.encode("utf-8")).hexdigest()
+
+
     def search_listings(s, token):
+        body = {
+            "community_id_list": [SILVER_SPRINGS_COMMUNITY_ID],
+            "house_type": ["all"],
+            "area": CALGARY_BBOX,
+            "list_type": [1],
+            "listing_days": 0,
+            "sold_days": 0,
+            "page_num": 1,
+            "page_size": 200,
+            "lang": "en_US",
+            "province": "AB",
+            "type": "list",
+        }
+        ts = str(int(time.time()))
+        body["ts"] = ts
+        body["signature"] = sign(body, ts)
         r = s.post(
             f"{BASE}/search/mapsearchv3/list",
-            json={
-                "community_id_list": [SILVER_SPRINGS_COMMUNITY_ID],
-                "house_type": ["all"],
-                "area": CALGARY_BBOX,
-                "list_type": [1],
-                "listing_days": 0,
-                "sold_days": 0,
-                "page_num": 1,
-                "page_size": 200,
-                "lang": "en_US",
-                "province": "AB",
-                "type": "list",
-            },
+            json=body,
             headers={**AUTH_EXTRA, "authorization": f"Bearer {token}"},
             timeout=30,
         )
         r.raise_for_status()
-        body = r.json()
-        if not body.get("status"):
-            raise RuntimeError(f"search rejected: {body.get('error')}")
-        return ((body.get("data") or {}).get("list") or [])
+        resp = r.json()
+        if not resp.get("status"):
+            raise RuntimeError(f"search rejected: {resp.get('error')}")
+        return ((resp.get("data") or {}).get("list") or [])
 
 
     def is_silver_springs(house):
