@@ -104,9 +104,9 @@ data:
             raise RuntimeError(f"signin rejected: {body.get('error')}")
 
 
-    def search_clusters(s, token):
+    def search_listings(s, token):
         r = s.post(
-            f"{BASE}/search/mapsearchv3/listing",
+            f"{BASE}/search/mapsearchv3/list",
             json={
                 "community_id_list": [SILVER_SPRINGS_COMMUNITY_ID],
                 "house_type": ["all"],
@@ -115,41 +115,19 @@ data:
                 "listing_days": 0,
                 "sold_days": 0,
                 "page_num": 1,
-                "page_size": 500,
+                "page_size": 200,
                 "lang": "en_US",
                 "province": "AB",
+                "type": "list",
             },
             headers={**AUTH_EXTRA, "authorization": f"Bearer {token}"},
             timeout=30,
         )
         r.raise_for_status()
-        data = r.json().get("data") or {}
-        clusters = data.get("list") or []
-        ids = []
-        for c in clusters:
-            cids = c.get("ids")
-            if isinstance(cids, list):
-                ids.extend(str(i) for i in cids)
-            elif isinstance(cids, str):
-                ids.append(cids)
-        return ids
-
-
-    def get_detail(s, token, id_listing):
-        r = s.post(
-            f"{BASE}/listing/info/detail_v2",
-            json={"id_listing": id_listing, "lang": "en_US", "province": "AB"},
-            headers={**AUTH_EXTRA, "authorization": f"Bearer {token}"},
-            timeout=15,
-        )
-        r.raise_for_status()
         body = r.json()
         if not body.get("status"):
-            if os.environ.get("DEBUG_COMMUNITIES"):
-                sys.stderr.write(f"detail_v2 {id_listing} status=False error={body.get('error')}\n")
-            return None
-        house = ((body.get("data") or {}).get("house") or {})
-        return house
+            raise RuntimeError(f"search rejected: {body.get('error')}")
+        return ((body.get("data") or {}).get("list") or [])
 
 
     def is_silver_springs(house):
@@ -160,14 +138,15 @@ data:
             return False
 
 
-    def normalize(id_listing, house):
+    def normalize(item):
+        id_listing = item.get("id_listing") or item.get("id") or ""
         return {
             "id": str(id_listing),
-            "price": house.get("price_int") or house.get("list_price") or 0,
-            "beds": house.get("bedroom") or "?",
-            "baths": house.get("bathroom") or "?",
-            "address": house.get("address") or "",
-            "url": f"https://housesigma.com/bkv2/landing/rootpage/listing?id_listing={id_listing}",
+            "price": item.get("price_int") or item.get("list_price") or item.get("price") or 0,
+            "beds": item.get("bedroom") or item.get("beds") or "?",
+            "baths": item.get("bathroom") or item.get("baths") or "?",
+            "address": item.get("address") or "",
+            "url": f"https://housesigma.com/bkv2/landing/rootpage/listing?id_listing={id_listing}" if id_listing else "",
         }
 
 
@@ -227,25 +206,20 @@ data:
         token = get_token(s)
         init_app(s, token)
         signin(s, token)
-        ids = search_clusters(s, token)
-        print(f"clusters returned {len(ids)} listing ids")
+        raw = search_listings(s, token)
+        print(f"search returned {len(raw)} listings")
 
-        listings = []
-        community_counts = {}
-        for i in ids:
-            house = get_detail(s, token, i)
-            if not house:
-                continue
-            community = house.get("community") or "<none>"
-            community_counts[community] = community_counts.get(community, 0) + 1
-            if not is_silver_springs(house):
-                continue
-            listings.append(normalize(i, house))
-
-        if os.environ.get("DEBUG_COMMUNITIES"):
-            print(f"detail_v2 succeeded for {sum(community_counts.values())} of {len(ids)}")
+        if os.environ.get("DEBUG_COMMUNITIES") and raw:
+            print(f"first item keys: {sorted(raw[0].keys())[:30]}")
+            community_counts = {}
+            for item in raw:
+                cid = item.get("community_id") or item.get("community") or "<none>"
+                community_counts[cid] = community_counts.get(cid, 0) + 1
             for c, n in sorted(community_counts.items(), key=lambda x: -x[1]):
                 print(f"  community: {c!r} ({n})")
+
+        listings = [normalize(i) for i in raw if is_silver_springs(i)]
+        listings = [l for l in listings if l["id"]]
 
         seen = load_seen()
         new = [l for l in listings if l["id"] not in seen]
