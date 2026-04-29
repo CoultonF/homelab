@@ -8,13 +8,12 @@ data:
     #!/usr/bin/env python3
     """Hourly Calgary Silver Springs new-listing watcher.
 
-    Auth flow against housesigma.com/bkv2/api:
-      1. POST /init/accesstoken/new        -> bearer token
-      2. POST /auth/user/signin            -> session cookies
-      3. POST /search/mapsearchv3/list     -> listings (Silver Springs bbox)
-
-    Diffs MLS / id_listing values against /state/seen.json (PVC-backed).
-    Mails any net-new listings via Gmail SMTP.
+    HouseSigma bkv2 API flow (matches calgary-home-search/scripts/homes/test_detail_with_login.exs):
+      1. POST /init/accesstoken/new                            -> bearer token
+      2. POST /init/app  {lang, province}                      -> session init
+      3. POST /auth/user/signin {email, pass, login_type, token}
+      4. POST /search/mapsearchv3/listing                      -> clusters of id_listing
+      5. POST /listing/info/detail_v2 per id                   -> address/price/beds/baths
     """
     import json
     import os
@@ -26,8 +25,8 @@ data:
 
     import requests
 
-    HS_BASE = "https://housesigma.com/bkv2/api"
-    HS_HEADERS = {
+    BASE = "https://housesigma.com/bkv2/api"
+    BASE_HEADERS = {
         "user-agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -39,6 +38,11 @@ data:
         "HS-Client-Version": "7.21.152",
         "content-type": "application/json",
     }
+    AUTH_EXTRA = {
+        "Hs-Current-URL": "https://housesigma.com/ab/calgary-real-estate/map",
+        "HS-Client-Latitude": "51.0447",
+        "HS-Client-Longitude": "-114.0719",
+    }
 
     SILVER_SPRINGS_BBOX = {
         "lat_min": 51.100,
@@ -46,7 +50,7 @@ data:
         "lng_min": -114.215,
         "lng_max": -114.160,
     }
-    SILVER_SPRINGS_COMMUNITY = "silver springs"
+    SILVER_SPRINGS_NAME = "silver springs"
 
     STATE = Path("/state/seen.json")
     SMTP_USER = "cjrfraser@gmail.com"
@@ -55,83 +59,114 @@ data:
     HS_PASSWORD = os.environ["HOUSE_SIGMA_PASSWORD"]
 
 
-    def get_token(session):
-        r = session.post(f"{HS_BASE}/init/accesstoken/new", json={}, timeout=15)
+    def make_session():
+        s = requests.Session()
+        s.headers.update(BASE_HEADERS)
+        return s
+
+
+    def get_token(s):
+        r = s.post(f"{BASE}/init/accesstoken/new", json={}, timeout=15)
         r.raise_for_status()
-        token = (r.json().get("data") or {}).get("access_token")
+        body = r.json()
+        token = (body.get("data") or {}).get("access_token")
         if not token:
-            raise RuntimeError(f"no access_token in response: {r.text[:300]}")
+            raise RuntimeError(f"no access_token: {body}")
         return token
 
 
-    def signin(session, token):
-        r = session.post(
-            f"{HS_BASE}/auth/user/signin",
-            json={"email": HS_EMAIL, "password": HS_PASSWORD, "token": token},
-            headers={"authorization": f"Bearer {token}"},
+    def init_app(s, token):
+        r = s.post(
+            f"{BASE}/init/app",
+            json={"lang": "en_US", "province": "AB"},
+            headers={**AUTH_EXTRA, "authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        r.raise_for_status()
+
+
+    def signin(s, token):
+        r = s.post(
+            f"{BASE}/auth/user/signin",
+            json={
+                "email": HS_EMAIL,
+                "pass": HS_PASSWORD,
+                "login_type": "normal",
+                "token": token,
+            },
+            headers={**AUTH_EXTRA, "authorization": f"Bearer {token}"},
             timeout=15,
             allow_redirects=False,
         )
         r.raise_for_status()
         body = r.json()
-        if body.get("status") and str(body["status"]).lower() not in ("ok", "success", "1", "true"):
-            err = body.get("error") or body
-            raise RuntimeError(f"signin rejected: {err}")
+        if not body.get("status"):
+            raise RuntimeError(f"signin rejected: {body.get('error')}")
 
 
-    def search(session, token, page_num=1, page_size=50):
-        r = session.post(
-            f"{HS_BASE}/search/mapsearchv3/list",
+    def search_clusters(s, token):
+        r = s.post(
+            f"{BASE}/search/mapsearchv3/listing",
             json={
                 "community_id_list": [],
-                "house_type": [],
+                "house_type": ["all"],
                 "area": SILVER_SPRINGS_BBOX,
-                "page_num": page_num,
-                "page_size": page_size,
-                "province": "AB",
-                "city_id": "Calgary",
-                "type": "list",
+                "list_type": [1],
+                "listing_days": 0,
+                "sold_days": 0,
+                "page_num": 1,
+                "page_size": 500,
                 "lang": "en_US",
+                "province": "AB",
             },
-            headers={"authorization": f"Bearer {token}"},
+            headers={**AUTH_EXTRA, "authorization": f"Bearer {token}"},
             timeout=30,
         )
         r.raise_for_status()
-        return ((r.json().get("data") or {}).get("list") or [])
+        data = r.json().get("data") or {}
+        clusters = data.get("list") or []
+        ids = []
+        for c in clusters:
+            cids = c.get("ids")
+            if isinstance(cids, list):
+                ids.extend(str(i) for i in cids)
+            elif isinstance(cids, str):
+                ids.append(cids)
+        return ids
 
 
-    def is_silver_springs(item):
-        community = (item.get("community") or item.get("community_name") or "").lower()
-        if SILVER_SPRINGS_COMMUNITY in community:
+    def get_detail(s, token, id_listing):
+        r = s.post(
+            f"{BASE}/listing/info/detail_v2",
+            json={"id_listing": id_listing, "lang": "en_US", "province": "AB"},
+            headers={**AUTH_EXTRA, "authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        r.raise_for_status()
+        body = r.json()
+        if not body.get("status"):
+            return None
+        house = ((body.get("data") or {}).get("house") or {})
+        return house
+
+
+    def is_silver_springs(house):
+        community = (house.get("community") or "").lower()
+        if SILVER_SPRINGS_NAME in community:
             return True
-        address = (item.get("address") or "").lower()
-        return SILVER_SPRINGS_COMMUNITY in address
+        address = (house.get("address") or "").lower()
+        return SILVER_SPRINGS_NAME in address
 
 
-    def normalize(item):
+    def normalize(id_listing, house):
         return {
-            "id": str(item.get("id_listing") or item.get("mls_number") or item.get("mls") or ""),
-            "price": item.get("list_price") or item.get("price") or 0,
-            "beds": item.get("bedroom") or item.get("beds") or item.get("bedrooms") or "?",
-            "baths": item.get("bathroom") or item.get("baths") or item.get("bathrooms") or "?",
-            "address": item.get("address") or "",
-            "url": (
-                f"https://housesigma.com/bkv2/landing/rootpage/listing?id_listing={item['id_listing']}"
-                if item.get("id_listing")
-                else ""
-            ),
+            "id": str(id_listing),
+            "price": house.get("price_int") or house.get("list_price") or 0,
+            "beds": house.get("bedroom") or "?",
+            "baths": house.get("bathroom") or "?",
+            "address": house.get("address") or "",
+            "url": f"https://housesigma.com/bkv2/landing/rootpage/listing?id_listing={id_listing}",
         }
-
-
-    def load_seen():
-        if not STATE.exists():
-            return set()
-        return set(json.loads(STATE.read_text()))
-
-
-    def save_seen(ids):
-        STATE.parent.mkdir(parents=True, exist_ok=True)
-        STATE.write_text(json.dumps(sorted(ids)))
 
 
     def fmt_price(p):
@@ -168,27 +203,47 @@ data:
         msg["From"] = SMTP_USER
         msg["To"] = SMTP_USER
         msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP("smtp.gmail.com", 587) as s:
-            s.starttls()
-            s.login(SMTP_USER, SMTP_PASSWORD)
-            s.send_message(msg)
+        with smtplib.SMTP("smtp.gmail.com", 587) as srv:
+            srv.starttls()
+            srv.login(SMTP_USER, SMTP_PASSWORD)
+            srv.send_message(msg)
+
+
+    def load_seen():
+        if not STATE.exists():
+            return set()
+        return set(json.loads(STATE.read_text()))
+
+
+    def save_seen(ids):
+        STATE.parent.mkdir(parents=True, exist_ok=True)
+        STATE.write_text(json.dumps(sorted(ids)))
 
 
     def main():
-        session = requests.Session()
-        session.headers.update(HS_HEADERS)
-        token = get_token(session)
-        signin(session, token)
-        raw = search(session, token)
-        listings = [normalize(i) for i in raw if is_silver_springs(i)]
-        listings = [l for l in listings if l["id"]]
+        s = make_session()
+        token = get_token(s)
+        init_app(s, token)
+        signin(s, token)
+        ids = search_clusters(s, token)
+        print(f"clusters returned {len(ids)} listing ids")
+
+        listings = []
+        for i in ids:
+            house = get_detail(s, token, i)
+            if not house:
+                continue
+            if not is_silver_springs(house):
+                continue
+            listings.append(normalize(i, house))
+
         seen = load_seen()
         new = [l for l in listings if l["id"] not in seen]
         if new:
             send_email(render_email(new), len(new))
-            print(f"emailed {len(new)} new listing(s)")
+            print(f"emailed {len(new)} new (of {len(listings)} Silver Springs listings)")
         else:
-            print(f"no new listings ({len(listings)} total in Silver Springs bbox)")
+            print(f"no new listings ({len(listings)} Silver Springs total)")
         save_seen(seen | {l["id"] for l in listings})
 
 
