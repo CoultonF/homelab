@@ -59,13 +59,19 @@ data:
         "content-type": "application/x-www-form-urlencoded; charset=utf-8",
     }
 
+    # Tightened to the Silver Springs polygon (rough bounding rectangle):
+    #   N: ~ Crowchild Trail / 5 Av NW
+    #   S: ~ Bowmont Park / Bow River
+    #   W: ~ Nose Hill Drive
+    #   E: ~ Crowchild Trail
     SILVER_SPRINGS = {
-        "lat1": 51.130,   # north
-        "lat2": 51.105,   # south
-        "lon1": -114.215, # west
-        "lon2": -114.165, # east
-        "zoom": 14.5,
+        "lat1": 51.128,   # north
+        "lat2": 51.108,   # south
+        "lon1": -114.213, # west
+        "lon2": -114.180, # east
+        "zoom": 15.0,
     }
+    LISTING_DAYS = 7  # only listings posted in the last N days
 
     STATE = Path("/state/seen.json")
 
@@ -88,7 +94,7 @@ data:
             ("lat1", str(area["lat1"])),
             ("lat2", str(area["lat2"])),
             ("list_type[]", "1"),
-            ("listing_days", "0"),
+            ("listing_days", str(LISTING_DAYS)),
             ("listing_type[]", "all"),
             ("lon1", str(area["lon1"])),
             ("lon2", str(area["lon2"])),
@@ -127,22 +133,23 @@ data:
 
 
     def collect_listings():
+        # Only /listing — /feature ignores the bbox and returns globally-
+        # featured listings (Ontario noise leaks in for an Alberta watcher).
         s = requests.Session()
-        merged = {}  # id -> {id, ml_num?, label?, lat, lon}
-        for path in ("/search/mapsearchv3/listing", "/search/mapsearchv3/feature"):
-            for item in fetch_map_items(s, path, SILVER_SPRINGS):
-                ids = item.get("ids") or []
-                if isinstance(ids, str):
-                    ids = [ids]
-                for i in ids:
-                    if not i:
-                        continue
-                    rec = merged.setdefault(i, {"id": i})
-                    rec["label"] = item.get("label") or rec.get("label")
-                    rec["ml_num"] = item.get("ml_num") or rec.get("ml_num")
-                    loc = item.get("location") or {}
-                    rec["lat"] = rec.get("lat") or loc.get("lat")
-                    rec["lon"] = rec.get("lon") or loc.get("lon")
+        merged = {}
+        for item in fetch_map_items(s, "/search/mapsearchv3/listing", SILVER_SPRINGS):
+            ids = item.get("ids") or []
+            if isinstance(ids, str):
+                ids = [ids]
+            for i in ids:
+                if not i:
+                    continue
+                rec = merged.setdefault(i, {"id": i})
+                # Only string labels carry price/type info ("D 0.63M");
+                # cluster labels are integer counts and aren't useful.
+                lbl = item.get("label")
+                if isinstance(lbl, str):
+                    rec["label"] = lbl
         return list(merged.values())
 
 
@@ -183,22 +190,17 @@ data:
 
 
     def render_row(l):
+        # H5 deep-link opens the HouseSigma iOS app via Universal Links
+        # when tapped on iPhone/iPad with the app installed.
         url = f"https://housesigma.com/h5/en/listing/{l['id']}"
         price = parse_label_price(l.get("label"))
-        price_s = f"${price:,}" if price else (l.get("label") or "?")
+        price_s = f"${price:,}" if price else "?"
+        prop_type = parse_label_type(l.get("label")) or "?"
         return (
             "<tr>"
-            f"<td><a href=\"{url}\">{l.get('ml_num') or l['id']}</a></td>"
-            f"<td>{parse_label_type(l.get('label'))}</td>"
+            f"<td>{prop_type}</td>"
             f"<td>{price_s}</td>"
-            f"<td>{l.get('lat'):.4f}, {l.get('lon'):.4f}</td>"
-            "</tr>"
-        ) if l.get("lat") and l.get("lon") else (
-            "<tr>"
-            f"<td><a href=\"{url}\">{l.get('ml_num') or l['id']}</a></td>"
-            f"<td>{parse_label_type(l.get('label'))}</td>"
-            f"<td>{price_s}</td>"
-            f"<td>?</td>"
+            f"<td><a href=\"{url}\">Open in HouseSigma</a></td>"
             "</tr>"
         )
 
@@ -207,11 +209,15 @@ data:
         rows = "".join(render_row(l) for l in new_listings)
         return (
             "<html><body>"
-            f"<p>{len(new_listings)} new Silver Springs listing(s):</p>"
+            f"<p>{len(new_listings)} new Silver Springs listing(s) "
+            f"(posted in last {LISTING_DAYS} days):</p>"
             "<table border='1' cellpadding='6' cellspacing='0'>"
-            "<tr><th>MLS / ID</th><th>Type</th><th>Price</th><th>Lat,Lon</th></tr>"
+            "<tr><th>Type</th><th>Price</th><th>Link</th></tr>"
             f"{rows}</table>"
-            "<p>Click the MLS / ID to open the HouseSigma listing.</p>"
+            "<p style='font-size:smaller;color:#666'>"
+            "Tap the link from your iPhone/iPad to open the listing in the "
+            "HouseSigma app. MLS number and full address require the app."
+            "</p>"
             "</body></html>"
         )
 
