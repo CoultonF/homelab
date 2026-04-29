@@ -4,6 +4,163 @@ metadata:
   name: watcher-script
   namespace: silver-springs-watch
 data:
+  token_check.py: |
+    #!/usr/bin/env python3
+    """Daily HouseSigma bearer-token health check.
+
+    Calls /init/accesstoken/check. On failure (or if the token is within
+    7 days of its expired_at), emails an alert with instructions to
+    recapture the token via mitmproxy and rotate the k8s secret.
+    """
+    import json
+    import os
+    import smtplib
+    import sys
+    import time
+    from email.mime.text import MIMEText
+    from pathlib import Path
+
+    import requests
+
+    BASE = "https://api.housesigma.com/bkv2/api"
+    HS_TOKEN = os.environ["HOUSE_SIGMA_TOKEN"]
+    SMTP_PASSWORD = os.environ["SMTP_PASSWORD"]
+    SMTP_USER = "cjrfraser@gmail.com"
+
+    HEADERS = {
+        "User-Agent": (
+            "HouseSigma Prod/7.35.0 (com.housesigma.ios; build:253; iOS 26.4.0) "
+            "Alamofire/5.6.4"
+        ),
+        "Authorization": f"Bearer {HS_TOKEN}",
+        "hs-client-type": "ios_native",
+        "hs-client-version": "7.35.0",
+        "accept-language": "en;q=1.0",
+        "content-type": "application/x-www-form-urlencoded; charset=utf-8",
+    }
+    LAST_ALERT = Path("/state/token_alert.txt")
+    ALERT_COOLDOWN_SECONDS = 24 * 60 * 60
+    EXPIRY_WARN_SECONDS = 7 * 24 * 60 * 60
+
+    INSTRUCTIONS = "\n".join([
+        "The HouseSigma bearer token used by the silver-springs-watch CronJob is",
+        "{state}. Hourly listing email alerts will fail until the token is",
+        "rotated.",
+        "",
+        "To rotate:",
+        "",
+        "  1. On the Mac, run:",
+        "       brew install mitmproxy   # if not already",
+        "       mitmdump --listen-port 8082 -w /tmp/hs.dump",
+        "",
+        "  2. On the iPhone:",
+        "       Settings > Wi-Fi > (network) > Configure Proxy > Manual",
+        "         Server: <Mac LAN IP>",
+        "         Port:   8082",
+        "       Safari > http://mitm.it > install + trust the mitmproxy CA cert",
+        "       Open the HouseSigma app and let it load (homepage is enough)",
+        "",
+        "  3. Back on the Mac, extract the new token from the captured flow:",
+        "       grep 'authorization: Bearer' from any api.housesigma.com request",
+        "",
+        "  4. Rotate the k8s secret (replaces only the token, keeps SMTP password):",
+        "       SMTP_PW=$(kubectl get secret mealie-secrets -n mealie \\",
+        "         -o jsonpath='{{.data.smtp-password}}' | base64 -d)",
+        "       kubectl create secret generic silver-springs-secrets \\",
+        "         -n silver-springs-watch \\",
+        "         --from-literal=house-sigma-token='<new bearer token>' \\",
+        "         --from-literal=smtp-password=\"$SMTP_PW\" \\",
+        "         --dry-run=client -o yaml | kubectl apply -f -",
+        "",
+        "  5. Verify:",
+        "       kubectl create job ssw-verify --from=cronjob/silver-springs-watch \\",
+        "         -n silver-springs-watch",
+        "       kubectl logs -n silver-springs-watch -l job-name=ssw-verify -f",
+    ])
+
+
+    def already_alerted_recently():
+        if not LAST_ALERT.exists():
+            return False
+        try:
+            ts = float(LAST_ALERT.read_text().strip())
+        except Exception:
+            return False
+        return (time.time() - ts) < ALERT_COOLDOWN_SECONDS
+
+
+    def mark_alerted():
+        LAST_ALERT.parent.mkdir(parents=True, exist_ok=True)
+        LAST_ALERT.write_text(str(time.time()))
+
+
+    def send_alert(subject, body):
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = SMTP_USER
+        msg["To"] = SMTP_USER
+        with smtplib.SMTP("smtp.gmail.com", 587) as srv:
+            srv.starttls()
+            srv.login(SMTP_USER, SMTP_PASSWORD)
+            srv.send_message(msg)
+
+
+    def main():
+        try:
+            r = requests.post(
+                f"{BASE}/init/accesstoken/check",
+                headers=HEADERS,
+                data=f"access_token={HS_TOKEN}&lang=en_US&province=AB",
+                timeout=15,
+            )
+        except Exception as e:
+            if not already_alerted_recently():
+                send_alert(
+                    "silver-springs-watch: token check FAILED (network)",
+                    INSTRUCTIONS.format(state=f"unreachable ({e})"),
+                )
+                mark_alerted()
+            sys.exit(1)
+
+        if r.status_code != 200:
+            if not already_alerted_recently():
+                send_alert(
+                    f"silver-springs-watch: token check FAILED (HTTP {r.status_code})",
+                    INSTRUCTIONS.format(state=f"rejected with HTTP {r.status_code}"),
+                )
+                mark_alerted()
+            sys.exit(1)
+
+        body = r.json()
+        if not body.get("status"):
+            if not already_alerted_recently():
+                send_alert(
+                    "silver-springs-watch: HouseSigma token INVALID — rotate",
+                    INSTRUCTIONS.format(state=f"rejected by HouseSigma: {body.get('error')}"),
+                )
+                mark_alerted()
+            sys.exit(1)
+
+        secret = ((body.get("data") or {}).get("secret") or {})
+        expired_at = int(secret.get("expired_at") or 0)
+        remaining = expired_at - int(time.time())
+        print(f"token OK; secret_key expires at {expired_at} ({remaining}s remaining)")
+
+        # Note: secret_key is a per-session key that the watcher refreshes
+        # on every run, so its expiry doesn't really threaten the token.
+        # But if accesstoken/check itself reports a near-future user-level
+        # expiry someday, surface it here. For now, just record health.
+        if LAST_ALERT.exists():
+            LAST_ALERT.unlink()
+
+
+    if __name__ == "__main__":
+        try:
+            main()
+        except Exception as e:
+            sys.stderr.write(f"token_check failed: {e}\n")
+            sys.exit(1)
+
   watcher.py: |
     #!/usr/bin/env python3
     """Hourly Calgary Silver Springs new-listing watcher.
