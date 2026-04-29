@@ -229,13 +229,20 @@ data:
         print(f"clusters returned {len(ids)} listing ids")
 
         listings = []
+        community_counts = {}
         for i in ids:
             house = get_detail(s, token, i)
             if not house:
                 continue
+            community = house.get("community") or "<none>"
+            community_counts[community] = community_counts.get(community, 0) + 1
             if not is_silver_springs(house):
                 continue
             listings.append(normalize(i, house))
+
+        if os.environ.get("DEBUG_COMMUNITIES"):
+            for c, n in sorted(community_counts.items(), key=lambda x: -x[1]):
+                print(f"  community: {c} ({n})")
 
         seen = load_seen()
         new = [l for l in listings if l["id"] not in seen]
