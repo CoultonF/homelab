@@ -22,6 +22,10 @@ data:
       - hostname: photos.coultonf.com
         service: http://immich-server.immich.svc.cluster.local:3001
 
+      # Route home.coultonf.com to Homebox
+      - hostname: home.coultonf.com
+        service: http://homebox.homebox.svc.cluster.local:7745
+
 
       # Example: Route api.example.com to an API service
       - hostname: api.example.com

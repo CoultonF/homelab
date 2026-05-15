@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homebox-config
+  namespace: homebox
+data:
+  HBOX_MODE: production
+  HBOX_WEB_PORT: "7745"
+  HBOX_STORAGE_DATA: /data
+  HBOX_STORAGE_SQLITE_URL: /data/homebox.db?_pragma=busy_timeout=999999&_pragma=journal_mode=WAL&_fk=1
+  # Set to "false" after creating your first account, then commit + push.
+  HBOX_OPTIONS_ALLOW_REGISTRATION: "true"
+  HBOX_WEB_MAX_UPLOAD_SIZE: "10"
+  TZ: America/Edmonton
