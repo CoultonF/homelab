@@ -27,7 +27,7 @@ spec:
           name: homebox-data
       containers:
       - name: homebox
-        image: ghcr.io/sysadminsmedia/homebox:v0.25.0
+        image: ghcr.io/sysadminsmedia/homebox:0.25.0
         imagePullPolicy: IfNotPresent
         envFrom:
         - configMapRef:

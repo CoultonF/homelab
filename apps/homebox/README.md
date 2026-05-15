@@ -6,7 +6,7 @@ Single Go binary with embedded SQLite — no separate database.
 ## Resources
 
 - Namespace: homebox
-- Deployment: homebox (ghcr.io/sysadminsmedia/homebox:v0.25.0)
+- Deployment: homebox (ghcr.io/sysadminsmedia/homebox:0.25.0)
 - Service: homebox (ClusterIP, port 7745)
 - Ingress: homebox-ingress (home.coultonf.com)
 - PersistentVolume: homebox-data-pv (10Gi)
