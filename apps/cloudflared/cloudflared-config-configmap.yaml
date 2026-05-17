@@ -26,6 +26,10 @@ data:
       - hostname: home.coultonf.com
         service: http://homebox.homebox.svc.cluster.local:7745
 
+      # Route shop.coultonf.com to Wishlist
+      - hostname: shop.coultonf.com
+        service: http://wishlist.wishlist.svc.cluster.local:3280
+
 
       # Example: Route api.example.com to an API service
       - hostname: api.example.com

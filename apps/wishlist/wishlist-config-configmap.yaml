@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wishlist-config
+  namespace: wishlist
+data:
+  ORIGIN: https://shop.coultonf.com
+  DEFAULT_CURRENCY: CAD
+  TOKEN_TIME: "72"
+  TZ: America/Edmonton

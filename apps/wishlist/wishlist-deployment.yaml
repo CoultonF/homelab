@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wishlist
+  namespace: wishlist
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: wishlist
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: wishlist
+    spec:
+      containers:
+      - name: wishlist
+        image: ghcr.io/cmintey/wishlist:v0.64.1
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: wishlist-config
+        ports:
+        - containerPort: 3280
+          protocol: TCP
+        resources:
+          requests:
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        livenessProbe:
+          tcpSocket:
+            port: 3280
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        readinessProbe:
+          tcpSocket:
+            port: 3280
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        volumeMounts:
+        - mountPath: /usr/src/app/data
+          name: wishlist-data
+          subPath: data
+        - mountPath: /usr/src/app/uploads
+          name: wishlist-data
+          subPath: uploads
+      restartPolicy: Always
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      volumes:
+      - name: wishlist-data
+        persistentVolumeClaim:
+          claimName: wishlist-data-pvc

@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wishlist-ingress
+  namespace: wishlist
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: shop.coultonf.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: wishlist
+            port:
+              number: 3280
+        path: /
+        pathType: Prefix
