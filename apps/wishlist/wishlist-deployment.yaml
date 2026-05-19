@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: wishlist
-        image: ghcr.io/coultonf/wishlist:v0.64.1-slate
+        image: ghcr.io/coultonf/wishlist:v0.64.1-slate.1
         imagePullPolicy: IfNotPresent
         envFrom:
         - configMapRef:

@@ -8,7 +8,7 @@ database — no separate database.
 ## Resources
 
 - Namespace: wishlist
-- Deployment: wishlist (ghcr.io/coultonf/wishlist:v0.64.1-slate — custom build)
+- Deployment: wishlist (ghcr.io/coultonf/wishlist:v0.64.1-slate.1 — custom build)
 - Service: wishlist (ClusterIP, port 3280)
 - Ingress: wishlist-ingress (shop.coultonf.com)
 - PersistentVolume: wishlist-data-pv (10Gi)
