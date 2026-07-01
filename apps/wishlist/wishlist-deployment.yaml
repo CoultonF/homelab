@@ -56,4 +56,4 @@ spec:
       volumes:
       - name: wishlist-data
         persistentVolumeClaim:
-          claimName: wishlist-data-pvc
+          claimName: wishlist-data

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: wishlist-data-pvc
+  name: wishlist-data
   namespace: wishlist
 spec:
   accessModes:
@@ -9,6 +9,5 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: manual
+  storageClassName: local-path
   volumeMode: Filesystem
-  volumeName: wishlist-data-pv
