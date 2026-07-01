@@ -72,6 +72,11 @@ spec:
                     restic init
                   fi
 
+                  # Clear stale locks left behind by a previously killed job,
+                  # otherwise the exclusive-lock `restic check` below fails forever.
+                  echo "Removing any stale locks..."
+                  restic unlock
+
                   echo "Starting backup of $BACKUP_SOURCE..."
                   restic backup "$BACKUP_SOURCE" \
                     --exclude-file /etc/restic/excludes.txt \

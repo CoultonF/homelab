@@ -26,6 +26,11 @@ spec:
                 - |
                   set -e
 
+                  # Clear stale locks left behind by a previously killed job,
+                  # otherwise the exclusive-lock forget/prune below fails forever.
+                  echo "Removing any stale locks..."
+                  restic unlock
+
                   echo "Applying retention policy..."
                   restic forget \
                     --keep-last "$KEEP_LAST" \
