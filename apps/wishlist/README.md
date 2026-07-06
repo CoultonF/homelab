@@ -11,8 +11,7 @@ database — no separate database.
 - Deployment: wishlist (ghcr.io/coultonf/wishlist:v0.64.1-slate.1 — custom build)
 - Service: wishlist (ClusterIP, port 3280)
 - Ingress: wishlist-ingress (shop.coultonf.com)
-- PersistentVolume: wishlist-data-pv (10Gi)
-- PersistentVolumeClaim: wishlist-data-pvc
+- PersistentVolumeClaims: wishlist-data, wishlist-uploads (local-path, 10Gi each)
 - ConfigMap: wishlist-config
 
 No Secrets required (SQLite, SMTP configured later in-app if wanted).
@@ -79,8 +78,14 @@ color is compiled into the CSS, default purple. We run a recolored fork:
 
 ## Storage
 
-`wishlist-data-pv` is a manual hostPath volume at `/var/lib/wishlist-data` on
-the node, reclaim policy `Retain`. Two subdirectories are mounted into the
-container: `data/` -> `/usr/src/app/data` (SQLite `prod.db`, auto-created and
-migrated on first boot) and `uploads/` -> `/usr/src/app/uploads` (uploaded
-images). The image runs as root, so no permission-fix initContainer is needed.
+Two `local-path` PVCs, each direct-mounted (no `subPath`): `wishlist-data` ->
+`/usr/src/app/data` (SQLite `prod.db`, auto-created and migrated on first
+boot) and `wishlist-uploads` -> `/usr/src/app/uploads` (uploaded images).
+The image runs as root, so no permission-fix initContainer is needed.
+
+**Never use `subPath` mounts on this node.** Kubelet materializes subPath
+bind sources inside its own container overlay (`/var/lib/kubelet/pods/*/
+volume-subpaths/`), so the data never reaches the PV directory and evaporates
+when the kubelet/sandbox restarts. This destroyed the live DB twice
+(2026-07-01, 2026-07-06); recovery both times was from the restic B2
+snapshots, which happen to capture the kubelet overlay under `/host-var`.

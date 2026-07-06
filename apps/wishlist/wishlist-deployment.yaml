@@ -41,13 +41,15 @@ spec:
             port: 3280
           initialDelaySeconds: 10
           periodSeconds: 10
+        # Direct mounts only — NO subPath. On this Talos node, kubelet
+        # materializes subPath bind sources inside its own container overlay
+        # (missing extraMount), so subPath data silently evaporates on
+        # kubelet/sandbox restarts. Bit us twice: 2026-07-01 and 2026-07-06.
         volumeMounts:
         - mountPath: /usr/src/app/data
           name: wishlist-data
-          subPath: data
         - mountPath: /usr/src/app/uploads
-          name: wishlist-data
-          subPath: uploads
+          name: wishlist-uploads
       restartPolicy: Always
       tolerations:
       - effect: NoSchedule
@@ -57,3 +59,6 @@ spec:
       - name: wishlist-data
         persistentVolumeClaim:
           claimName: wishlist-data
+      - name: wishlist-uploads
+        persistentVolumeClaim:
+          claimName: wishlist-uploads
