@@ -584,19 +584,21 @@
           </div>
         </div>`);
 
-      this._layout();
-      if (page > 1 && !this._split) return this._renderFallback();
+      const status = this._layout();
+      if (page > 1 && status === "single") return this._renderFallback();
       const card = this.shadowRoot.querySelector("ha-card");
       this._lastW = card.clientWidth;
       this._lastH = card.clientHeight;
       if (this._ro) this._ro.disconnect();
       // The card's height is viewport-fixed, so refitting never resizes it —
-      // safe to refit on any card size change without looping.
+      // safe to refit on any card size change without looping. This also
+      // handles the initial render racing the card's attach/layout ("unsized").
       this._ro = new ResizeObserver(() => {
         if (card.clientWidth !== this._lastW || card.clientHeight !== this._lastH) {
           this._lastW = card.clientWidth;
           this._lastH = card.clientHeight;
-          this._layout();
+          const s = this._layout();
+          if (page > 1 && s === "single") this._renderFallback();
         }
       });
       this._ro.observe(card);
@@ -609,8 +611,13 @@
     // against the same viewport, so the pages always agree on the boundary.
     _layout() {
       const body = this.shadowRoot.querySelector(".body");
-      if (!body) return;
+      if (!body) return "none";
+      // Not attached/laid out yet — the ResizeObserver retries once sized.
+      if (!body.clientHeight) return "unsized";
       const page = this._config.page || 1;
+      // Reset any previous page assignment first: re-layout must measure the
+      // full content, and hidden items would measure as 0x0.
+      for (const li of body.querySelectorAll("li")) li.style.display = "";
       const fits = (px, pages) => {
         body.style.fontSize = `${px}px`;
         return (
@@ -651,6 +658,7 @@
       const hint = this.shadowRoot.querySelector(".cont-hint");
       if (hint)
         hint.style.display = this._split && page === 1 ? "block" : "none";
+      return this._split ? "split" : "single";
     }
 
     // When there's no continuation content, the page-2 playlist slot would

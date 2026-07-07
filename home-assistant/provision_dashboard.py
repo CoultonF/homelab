@@ -15,7 +15,7 @@ import websockets
 WS_URL = "ws://192.168.0.96:8123/api/websocket"
 TOKEN = pathlib.Path("~/.config/hass_token").expanduser().read_text().strip()
 
-RESOURCE_URL = "/local/mealie-cards.js?v=8"  # bump ?v= after each deploy.sh run
+RESOURCE_URL = "/local/mealie-cards.js?v=9"  # bump ?v= after each deploy.sh run
 URL_PATH = "meal-planner"  # dashboard url_path must contain a hyphen
 DINNER_URL_PATH = "mealie-dinner"
 
