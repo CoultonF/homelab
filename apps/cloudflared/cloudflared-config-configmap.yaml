@@ -30,11 +30,6 @@ data:
       - hostname: shop.coultonf.com
         service: http://wishlist.wishlist.svc.cluster.local:3280
 
-      # Route trmnl.coultonf.com to Terminus (TRMNL BYOS)
-      - hostname: trmnl.coultonf.com
-        service: http://terminus.terminus.svc.cluster.local:2300
-
-
       # Example: Route api.example.com to an API service
       - hostname: api.example.com
         service: http://api-service.default.svc.cluster.local:8080
