@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terminus-worker
+  namespace: terminus
+  labels:
+    app.kubernetes.io/name: terminus
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: terminus
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: terminus
+        app.kubernetes.io/component: worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/usetrmnl/terminus:latest
+          imagePullPolicy: Always
+          command: ["bundle", "exec", "sidekiq", "-r", "./config/sidekiq.rb"]
+          env:
+            - name: TZ
+              value: "America/Vancouver"
+            - name: HANAMI_PORT
+              value: "2300"
+            - name: API_URI
+              value: "https://trmnl.coultonf.com"
+            - name: APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: terminus-app-secret
+                  key: APP_SECRET
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: terminus-postgres-app
+                  key: password
+            - name: DATABASE_URL
+              value: "postgres://terminus:$(DB_PASSWORD)@terminus-postgres-rw:5432/terminus"
+            - name: KEYVALUE_URL
+              value: "redis://terminus-keyvalue:6379/0"
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/public/uploads
+            - name: fonts
+              mountPath: /app/public/fonts
+            - name: fonts
+              mountPath: /usr/share/fonts/terminus
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "sidekiq"]
+            initialDelaySeconds: 45
+            periodSeconds: 30
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: terminus-uploads
+        - name: fonts
+          persistentVolumeClaim:
+            claimName: terminus-fonts

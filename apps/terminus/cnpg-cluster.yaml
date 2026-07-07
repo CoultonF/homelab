@@ -1,0 +1,16 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: terminus-postgres
+  namespace: terminus
+spec:
+  instances: 1
+
+  bootstrap:
+    initdb:
+      database: terminus
+      owner: terminus
+
+  storage:
+    size: 5Gi
+    storageClass: local-path
