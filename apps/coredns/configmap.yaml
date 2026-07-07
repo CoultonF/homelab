@@ -45,6 +45,13 @@ data:
             lameduck 5s
         }
         ready
+        # Split-horizon: answer coultonf.com hosts with the node LAN IP so
+        # local/tailnet clients hit ingress-nginx directly instead of
+        # hairpinning through Cloudflare (reachable via tailscale subnet router too)
+        hosts {
+            192.168.0.249 trmnl.coultonf.com
+            fallthrough
+        }
         # Forward to Google and Cloudflare DNS
         forward . 8.8.8.8 1.1.1.1 {
             max_concurrent 1000
