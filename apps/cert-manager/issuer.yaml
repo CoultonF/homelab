@@ -1,0 +1,33 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-cloudflare
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: cjrfraser@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-cloudflare-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              # Created out-of-band (public repo); see README.md
+              name: cloudflare-api-token
+              key: api-token
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-coultonf-com
+  # Lives next to ingress-nginx so it can be the controller default cert
+  namespace: ingress-nginx
+spec:
+  secretName: wildcard-coultonf-tls
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  commonName: "*.coultonf.com"
+  dnsNames:
+    - "*.coultonf.com"
+    - "coultonf.com"
