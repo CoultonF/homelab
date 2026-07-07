@@ -1,6 +1,8 @@
-# Provision the "Meals" dashboard on the HAOS NUC (idempotent).
-# Registers /local/mealie-cards.js as a Lovelace resource, creates the
-# meal-planner dashboard if missing, and (re)saves its view config.
+# Provision the Mealie dashboards on the HAOS NUC (idempotent).
+# Registers /local/mealie-cards.js as a Lovelace resource, then creates (if
+# missing) and (re)saves the view config of two dashboards:
+#   /meal-planner  — week plan + groceries (TRMNL X screenshot render)
+#   /mealie-dinner — tonight's recipe, ingredients + directions (TRMNL X)
 #
 # Run: uv run --with websockets home-assistant/provision_dashboard.py
 
@@ -13,41 +15,73 @@ import websockets
 WS_URL = "ws://192.168.0.96:8123/api/websocket"
 TOKEN = pathlib.Path("~/.config/hass_token").expanduser().read_text().strip()
 
-RESOURCE_URL = "/local/mealie-cards.js?v=1"
+RESOURCE_URL = "/local/mealie-cards.js?v=8"  # bump ?v= after each deploy.sh run
 URL_PATH = "meal-planner"  # dashboard url_path must contain a hyphen
+DINNER_URL_PATH = "mealie-dinner"
 
+# Panel view: the horizontal-stack spans the full viewport; flex_weight sets
+# the 1/3 groceries : 2/3 planner split. Sized for the TRMNL X screenshot
+# render (1872x1404 landscape).
 DASHBOARD_CONFIG = {
     "views": [
         {
             "title": "Meals",
             "path": "home",
-            "type": "sections",
-            "max_columns": 2,
-            "sections": [
+            "type": "panel",
+            "cards": [
                 {
-                    "type": "grid",
+                    "type": "horizontal-stack",
                     "cards": [
                         {
                             "type": "custom:mealie-shopping-card",
                             "entity": "todo.mealie_weekly",
                             "title": "Groceries to Buy",
-                        }
-                    ],
-                },
-                {
-                    "type": "grid",
-                    "cards": [
+                            "flex_weight": 1,
+                        },
                         {
                             "type": "custom:mealie-week-card",
                             "entity": "calendar.mealie_dinner",
-                            "title": "Meal Planner",
-                        }
+                            "flex_weight": 2,
+                        },
                     ],
-                },
+                }
             ],
         }
     ]
 }
+
+
+# Tonight's recipe full-screen for the TRMNL X. The card calls the Mealie
+# integration's get_mealplan/get_recipe actions, which need the config entry
+# id; it's injected here at provision time because looking it up requires an
+# admin-only WS call the card can't make for non-admin viewers.
+def dinner_dashboard_config(mealie_entry_id):
+    def view(page, path, title):
+        return {
+            "title": title,
+            "path": path,
+            "type": "panel",
+            "cards": [
+                {
+                    "type": "custom:mealie-recipe-card",
+                    "entity": "calendar.mealie_dinner",
+                    "meal_type": "dinner",
+                    "config_entry_id": mealie_entry_id,
+                    "page": page,
+                }
+            ],
+        }
+
+    # Page 2 shows the overflow when the recipe doesn't fit one screen at a
+    # readable size (or the week planner when it does). Add both views as
+    # TRMNL screenshot playlist items; the touch bar flips between them:
+    #   /mealie-dinner  and  /mealie-dinner/page-2
+    return {
+        "views": [
+            view(1, "home", "Dinner Tonight"),
+            view(2, "page-2", "Dinner Tonight (continued)"),
+        ]
+    }
 
 
 class HA:
@@ -77,33 +111,64 @@ async def main():
 
         resources = await ha.cmd(type="lovelace/resources")
         base = RESOURCE_URL.split("?")[0]
-        if any(r["url"].split("?")[0] == base for r in resources):
-            print("resource: already registered")
-        else:
+        existing = next(
+            (r for r in resources if r["url"].split("?")[0] == base), None
+        )
+        if existing is None:
             await ha.cmd(
                 type="lovelace/resources/create", res_type="module", url=RESOURCE_URL
             )
             print(f"resource: registered {RESOURCE_URL}")
-
-        dashboards = await ha.cmd(type="lovelace/dashboards/list")
-        if any(d.get("url_path") == URL_PATH for d in dashboards):
-            print("dashboard: already exists")
-        else:
+        elif existing["url"] != RESOURCE_URL:
             await ha.cmd(
-                type="lovelace/dashboards/create",
-                url_path=URL_PATH,
-                title="Meals",
-                icon="mdi:silverware-fork-knife",
-                show_in_sidebar=True,
-                require_admin=False,
-                mode="storage",
+                type="lovelace/resources/update",
+                resource_id=existing["id"],
+                res_type="module",
+                url=RESOURCE_URL,
             )
-            print(f"dashboard: created /{URL_PATH}")
+            print(f"resource: updated to {RESOURCE_URL}")
+        else:
+            print("resource: already registered")
 
-        await ha.cmd(
-            type="lovelace/config/save", url_path=URL_PATH, config=DASHBOARD_CONFIG
+        entries = await ha.cmd(type="config_entries/get", domain="mealie")
+        if not entries:
+            raise RuntimeError("no Mealie config entry found in HA")
+        mealie_entry_id = entries[0]["entry_id"]
+
+        await ensure_dashboard(
+            ha,
+            url_path=URL_PATH,
+            title="Meals",
+            icon="mdi:silverware-fork-knife",
+            config=DASHBOARD_CONFIG,
         )
-        print("dashboard: view config saved")
+        await ensure_dashboard(
+            ha,
+            url_path=DINNER_URL_PATH,
+            title="Dinner Tonight",
+            icon="mdi:chef-hat",
+            config=dinner_dashboard_config(mealie_entry_id),
+        )
+
+
+async def ensure_dashboard(ha, *, url_path, title, icon, config):
+    dashboards = await ha.cmd(type="lovelace/dashboards/list")
+    if any(d.get("url_path") == url_path for d in dashboards):
+        print(f"dashboard: /{url_path} already exists")
+    else:
+        await ha.cmd(
+            type="lovelace/dashboards/create",
+            url_path=url_path,
+            title=title,
+            icon=icon,
+            show_in_sidebar=True,
+            require_admin=False,
+            mode="storage",
+        )
+        print(f"dashboard: created /{url_path}")
+
+    await ha.cmd(type="lovelace/config/save", url_path=url_path, config=config)
+    print(f"dashboard: /{url_path} view config saved")
 
 
 asyncio.run(main())
