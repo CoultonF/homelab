@@ -232,7 +232,7 @@ subjects:
   namespace: ingress-nginx
 ---
 apiVersion: v1
-data: null
+data: {}
 kind: ConfigMap
 metadata:
   labels:
@@ -316,7 +316,6 @@ spec:
         - --controller-class=k8s.io/ingress-nginx
         - --ingress-class=nginx
         - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
-        - --https-port=8443
         env:
         - name: POD_NAME
           valueFrom:
@@ -350,9 +349,13 @@ spec:
         - containerPort: 80
           name: http
           protocol: TCP
-        - containerPort: 8443
+          hostPort: 80
+          hostIP: 192.168.0.249
+        - containerPort: 443
           name: https
           protocol: TCP
+          hostPort: 443
+          hostIP: 192.168.0.249
         readinessProbe:
           failureThreshold: 3
           httpGet:
@@ -381,12 +384,10 @@ spec:
           seccompProfile:
             type: RuntimeDefault
         volumeMounts: []
-      dnsPolicy: ClusterFirstWithHostNet
       nodeSelector:
         kubernetes.io/os: linux
       serviceAccountName: ingress-nginx
       terminationGracePeriodSeconds: 300
-      hostNetwork: true
 ---
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
