@@ -15,6 +15,8 @@ in the `hosts` block of the default zone resolve to the node LAN IP for
 local/tailnet clients. Add one line there per hostname to short-circuit
 more apps.
 
-Note: local HTTPS serves the controller's self-signed cert (Cloudflare
-terminates TLS for public traffic). Use plain HTTP locally, or add
-cert-manager later if local TLS matters.
+Local HTTPS serves the Let's Encrypt wildcard `*.coultonf.com` cert
+(`--default-ssl-certificate`, issued by cert-manager — see
+`apps/cert-manager/`), so internal `https://` validates for every
+app hostname. The controller uses hostPort bound to 192.168.0.249
+specifically because tailscaled owns 443 on the node's tailscale IP.
