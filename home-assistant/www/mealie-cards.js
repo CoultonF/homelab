@@ -56,8 +56,10 @@
 
   // Recipe body font range: never shrink below the e-ink-readable floor —
   // overflow spills to a second page (TRMNL playlist screen) instead.
-  const RECIPE_FONT_MIN = 17;
-  const RECIPE_FONT_MAX = 34;
+  // Sized for the TRMNL X: 1872x1404 at ~227 PPI with devicePixelRatio 1,
+  // so px here are physical device pixels (26px ~ 8pt in print).
+  const RECIPE_FONT_MIN = 26;
+  const RECIPE_FONT_MAX = 48;
 
   // Scale font-size so the text fills its container width but stays within
   // maxLines wrapped lines — binary search, like TRMNL's data-fit-value.
@@ -394,12 +396,12 @@
                 padding: 36px 44px 32px; display: flex; flex-direction: column;
                 overflow: hidden; position: relative; }
       .cont-hint { position: absolute; right: 44px; bottom: 16px; display: none;
-                   font-size: 1.2rem; color: var(--secondary-text-color);
+                   font-size: 1.5rem; color: var(--secondary-text-color);
                    background: var(--card-background-color); padding-left: 14px; }
-      .eyebrow { font-size: 1.1rem; font-weight: 700; text-transform: uppercase;
+      .eyebrow { font-size: 1.4rem; font-weight: 700; text-transform: uppercase;
                  letter-spacing: 0.1em; color: var(--secondary-text-color); }
       .name { font-size: 3.2rem; font-weight: 800; line-height: 1.1; margin: 6px 0 0; }
-      .meta { font-size: 1.3rem; color: var(--secondary-text-color); margin-top: 10px; }
+      .meta { font-size: 1.6rem; color: var(--secondary-text-color); margin-top: 10px; }
       .body { flex: 1; min-height: 0; display: flex; gap: 3em; margin-top: 28px;
               overflow: hidden; }
       .col-title { font-size: 0.85em; font-weight: 700; text-transform: uppercase;
