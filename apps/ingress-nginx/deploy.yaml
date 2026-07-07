@@ -316,6 +316,7 @@ spec:
         - --controller-class=k8s.io/ingress-nginx
         - --ingress-class=nginx
         - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
+        - --https-port=8443
         env:
         - name: POD_NAME
           valueFrom:
@@ -349,7 +350,7 @@ spec:
         - containerPort: 80
           name: http
           protocol: TCP
-        - containerPort: 443
+        - containerPort: 8443
           name: https
           protocol: TCP
         readinessProbe:
