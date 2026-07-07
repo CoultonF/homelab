@@ -50,6 +50,10 @@ data:
         # hairpinning through Cloudflare (reachable via tailscale subnet router too)
         hosts {
             192.168.0.249 trmnl.coultonf.com
+            192.168.0.249 shop.coultonf.com
+            192.168.0.249 mealie.coultonf.com
+            192.168.0.249 home.coultonf.com
+            192.168.0.249 photos.coultonf.com
             fallthrough
         }
         # Forward to Google and Cloudflare DNS
