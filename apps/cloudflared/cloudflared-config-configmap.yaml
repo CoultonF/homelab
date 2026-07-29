@@ -52,6 +52,10 @@ data:
       - hostname: ssh.example.com
         service: tcp://ssh-service.default.svc.cluster.local:22
 
+      # Route Home Assistant OS
+      - hostname: haos.coultonf.com
+        service: http://192.168.0.96:8123
+
       # Route TRMNL Aranet plugin service
       - hostname: trmnl.coultonf.com
         service: http://trmnl-aranet.trmnl-aranet.svc.cluster.local:3000
