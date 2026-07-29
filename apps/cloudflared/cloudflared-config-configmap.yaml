@@ -52,5 +52,9 @@ data:
       - hostname: ssh.example.com
         service: tcp://ssh-service.default.svc.cluster.local:22
 
+      # Route TRMNL Aranet plugin service
+      - hostname: trmnl.coultonf.com
+        service: http://trmnl-aranet.trmnl-aranet.svc.cluster.local:3000
+
       # Catch-all rule (must be last)
       - service: http_status:404

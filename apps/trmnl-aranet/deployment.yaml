@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trmnl-aranet
+  namespace: trmnl-aranet
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: trmnl-aranet
+  template:
+    metadata:
+      labels:
+        app: trmnl-aranet
+    spec:
+      containers:
+        - name: trmnl-aranet
+          image: ghcr.io/coultonf/trmnl-aranet:latest
+          imagePullPolicy: Always
+          env:
+            - name: DATA_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: trmnl-aranet-secrets
+                  key: data-encryption-key
+            - name: DATABASE_PATH
+              value: /data/plugin.sqlite
+            - name: ALLOWED_PRIVATE_HA_HOSTS
+              value: 192.168.0.96
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: trmnl-aranet-data
+        - name: tmp
+          emptyDir: {}
