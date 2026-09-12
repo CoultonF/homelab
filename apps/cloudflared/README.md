@@ -29,3 +29,17 @@ kubectl apply -f tunnel-credentials.secret.yaml
 kubectl apply -f cloudflared-config-configmap.yaml
 kubectl apply -f cloudflared-deployment.yaml
 ```
+
+## Applying route changes
+
+cloudflared does not hot-reload `config.yaml`. After ArgoCD syncs a change to
+`cloudflared-config-configmap.yaml`, delete the pod so the ReplicaSet
+recreates it with the new config (public routes blip for a few seconds):
+
+```bash
+kubectl -n cloudflared delete pod -l app=cloudflared
+```
+
+Don't use `kubectl rollout restart`: `cloudflared-deployment.yaml` pins
+`kubectl.kubernetes.io/restartedAt` in the pod template, so ArgoCD selfHeal
+reverts the restart and the old pod keeps serving the old routes.

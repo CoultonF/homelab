@@ -25,8 +25,8 @@ separate database.
 
 Public: the route `todo.coultonf.com -> http://vikunja.vikunja.svc.cluster.local:3456`
 lives in `apps/cloudflared/cloudflared-config-configmap.yaml`. cloudflared
-does not hot-reload its config — after ArgoCD syncs a route change, run
-`kubectl -n cloudflared rollout restart deploy/cloudflared`.
+does not hot-reload its config — after ArgoCD syncs a route change, delete
+the cloudflared pod (see `apps/cloudflared/README.md`).
 
 LAN: `192.168.0.249 todo.coultonf.com` in the `hosts` block of
 `apps/coredns/configmap.yaml` sends local clients to ingress-nginx, which
