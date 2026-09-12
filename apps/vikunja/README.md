@@ -7,7 +7,7 @@ separate database. We run a fork renamed **To Do** (see [Fork](#fork)).
 ## Resources
 
 - Namespace: vikunja
-- Deployment: vikunja (ghcr.io/coultonf/vikunja:v2.6.0-todo.1 — custom build)
+- Deployment: vikunja (ghcr.io/coultonf/vikunja — custom build, see [Fork](#fork); tag pinned in `vikunja-deployment.yaml`)
 - Service: vikunja (ClusterIP, port 3456)
 - Ingress: vikunja-ingress (todo.coultonf.com)
 - PersistentVolumeClaims: vikunja-db (1Gi), vikunja-files (10Gi) — local-path
@@ -84,7 +84,7 @@ without a permission-fix initContainer. Both live under
 
 We run a fork renamed **To Do**: [CoultonF/vikunja](https://github.com/CoultonF/vikunja),
 branch `todo` (the fork's default branch), cut from upstream tag `v2.6.0`.
-Two commits on top of upstream:
+Three commits on top of upstream:
 
 1. `ci:` — deletes upstream's `.github/workflows/*` (their crons and PR/issue
    bots would otherwise run on the fork) and adds `todo-image.yml`, which
@@ -96,8 +96,14 @@ Two commits on top of upstream:
    (`frontend/src/assets/logo-full*.svg`: "To Do" outlined in Quicksand Bold
    at the original's size and baseline). Kept on purpose: "Powered by
    Vikunja", the "Vikunja" quick-add-magic mode, the CalDAV docs link, and
-   the "Vikunja Export" importer. Other UI languages and the llama icons are
-   unchanged.
+   the "Vikunja Export" importer. Other UI languages are unchanged.
+3. `feat:` dog icons — `frontend/src/assets/dog-front.svg` and `dog-cool.svg`
+   (the source art, verbatim) replace the llama on the login page and the
+   empty task list, and dog-front sits in the logo circle (`logo.svg`,
+   `logo-full*.svg`). Every icon in `frontend/public/` (favicon, Apple touch,
+   Android/PWA, maskable, time-tracking favicon) is regenerated from the
+   logo. The two llama photos — `llama-nightscape.jpg` (loading screen) and
+   `no-auth-image.jpg` (login page) — are unchanged.
 
 ### Making a change
 
