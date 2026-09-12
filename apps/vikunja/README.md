@@ -2,12 +2,12 @@
 
 Self-hosted to-do list / project manager ([vikunja.io](https://vikunja.io)).
 Single Go binary serving both API and frontend, with embedded SQLite — no
-separate database.
+separate database. We run a fork renamed **To Do** (see [Fork](#fork)).
 
 ## Resources
 
 - Namespace: vikunja
-- Deployment: vikunja (vikunja/vikunja:2.6.0)
+- Deployment: vikunja (ghcr.io/coultonf/vikunja:v2.6.0-todo.1 — custom build)
 - Service: vikunja (ClusterIP, port 3456)
 - Ingress: vikunja-ingress (todo.coultonf.com)
 - PersistentVolumeClaims: vikunja-db (1Gi), vikunja-files (10Gi) — local-path
@@ -80,8 +80,40 @@ without a permission-fix initContainer. Both live under
 `/var/local-path-provisioner`, which the nightly restic job
 (`infrastructure/backup/`) snapshots along with the rest of `/var`.
 
-## Upgrading
+## Fork
 
-Bump `image:` in `vikunja-deployment.yaml` (pinned tag,
-`imagePullPolicy: IfNotPresent`), commit, and push. Database migrations run
-automatically on start.
+We run a fork renamed **To Do**: [CoultonF/vikunja](https://github.com/CoultonF/vikunja),
+branch `todo` (the fork's default branch), cut from upstream tag `v2.6.0`.
+Two commits on top of upstream:
+
+1. `ci:` — deletes upstream's `.github/workflows/*` (their crons and PR/issue
+   bots would otherwise run on the fork) and adds `todo-image.yml`, which
+   builds the upstream Dockerfile on every push to `todo` and publishes
+   `ghcr.io/coultonf/vikunja:<VERSION>` (+ `:todo`). The package must be
+   public — the cluster pulls with no imagePullSecret.
+2. `feat:` rename — page and tab titles, PWA manifest name (home-screen
+   label), 2FA issuer, 32 English UI strings, and the logo wordmark
+   (`frontend/src/assets/logo-full*.svg`: "To Do" outlined in Quicksand Bold
+   at the original's size and baseline). Kept on purpose: "Powered by
+   Vikunja", the "Vikunja" quick-add-magic mode, the CalDAV docs link, and
+   the "Vikunja Export" importer. Other UI languages and the llama icons are
+   unchanged.
+
+### Making a change
+
+1. Commit on `todo` in the fork, bump `VERSION` in
+   `.github/workflows/todo-image.yml` (`v2.6.0-todo.2`, `.3`, …), and push —
+   CI publishes the image. Tags are immutable and the Deployment uses
+   `imagePullPolicy: IfNotPresent`, so every change needs a new suffix.
+2. Bump `image:` in `vikunja-deployment.yaml` to that tag, commit, and push
+   `main`. Wait for CI to finish first: the Deployment is `Recreate`, so a
+   tag that doesn't exist yet takes the app down until it does.
+
+### Bumping upstream version
+
+1. In the fork: `git fetch upstream tag vX.Y.Z --no-tags`, then
+   `git checkout -B todo vX.Y.Z` and `git cherry-pick` the fork commits,
+   resolving conflicts in favour of the fork's versions (workflows stay
+   deleted, logos stay "To Do").
+2. Set `VERSION: vX.Y.Z-todo.1` and force-push `todo`.
+3. Bump the image tag here. Database migrations run automatically on start.
