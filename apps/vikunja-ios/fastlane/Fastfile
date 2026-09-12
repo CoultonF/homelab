@@ -1,0 +1,159 @@
+require "base64"
+require "securerandom"
+
+default_platform(:ios)
+skip_docs
+
+BUNDLE_ID = "com.coultonf.vikunja"
+
+platform :ios do
+  desc "Check required secrets are present"
+  lane :validate_secrets do
+    %w[TEAMID GH_PAT FASTLANE_KEY_ID FASTLANE_ISSUER_ID FASTLANE_KEY MATCH_PASSWORD].each do |name|
+      UI.user_error!("#{name} secret is missing") if ENV[name].to_s.strip.empty?
+    end
+
+    UI.success("All required secrets are present.")
+  end
+
+  desc "Create App Store Connect API key"
+  lane :create_api_key do
+    validate_secrets
+
+    app_store_connect_api_key(
+      key_id: ENV["FASTLANE_KEY_ID"],
+      issuer_id: ENV["FASTLANE_ISSUER_ID"],
+      key_content: ENV["FASTLANE_KEY"],
+      is_key_content_base64: false,
+      duration: 1200,
+      in_house: false
+    )
+  end
+
+  desc "Create the Vikunja bundle identifier if needed"
+  lane :identifiers do
+    create_api_key
+
+    existing = Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID)
+    if existing
+      UI.message("Bundle ID #{BUNDLE_ID} already exists.")
+    else
+      Spaceship::ConnectAPI::BundleId.create(
+        name: "Vikunja",
+        identifier: BUNDLE_ID,
+        platform: Spaceship::ConnectAPI::BundleIdPlatform::IOS
+      )
+      UI.success("Created bundle ID #{BUNDLE_ID}.")
+    end
+  end
+
+  desc "Create or renew Vikunja signing certificates and profiles"
+  lane :certs do
+    create_api_key
+
+    match(
+      type: "appstore",
+      app_identifier: [BUNDLE_ID],
+      team_id: ENV["TEAMID"],
+      git_basic_authorization: Base64.strict_encode64("CoultonF:#{ENV["GH_PAT"]}"),
+      readonly: false
+    )
+  end
+
+  desc "Build Vikunja for TestFlight with readonly signing credentials"
+  lane :build do
+    create_api_key
+
+    keychain_name = "vikunja-#{SecureRandom.uuid}.keychain"
+    keychain_path = File.expand_path("~/Library/Keychains/#{keychain_name}")
+    keychain_password = SecureRandom.base64(32)
+
+    begin
+      create_keychain(
+        name: keychain_name,
+        password: keychain_password,
+        default_keychain: false,
+        unlock: true,
+        timeout: 3600,
+        lock_when_sleeps: false,
+        add_to_search_list: true,
+        require_create: true
+      )
+
+      match(
+        type: "appstore",
+        app_identifier: [BUNDLE_ID],
+        team_id: ENV["TEAMID"],
+        git_basic_authorization: Base64.strict_encode64("CoultonF:#{ENV["GH_PAT"]}"),
+        keychain_name: keychain_name,
+        keychain_password: keychain_password,
+        readonly: true
+      )
+
+      profile_name = ENV["sigh_#{BUNDLE_ID}_appstore_profile-name"]
+      if profile_name.to_s.strip.empty?
+        UI.user_error!("sigh_#{BUNDLE_ID}_appstore_profile-name is missing after Match")
+      end
+
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path: "Vikunja.xcodeproj",
+        team_id: ENV["TEAMID"],
+        code_sign_identity: "iPhone Distribution",
+        targets: ["Vikunja"],
+        profile_name: profile_name,
+        bundle_identifier: BUNDLE_ID
+      )
+
+      version = get_version_number(
+        xcodeproj: "Vikunja.xcodeproj",
+        target: "Vikunja",
+        configuration: "Release"
+      )
+      latest_build = latest_testflight_build_number(
+        app_identifier: BUNDLE_ID,
+        version: version,
+        initial_build_number: 0
+      )
+      increment_build_number(
+        xcodeproj: "Vikunja.xcodeproj",
+        build_number: latest_build + 1
+      )
+
+      gym(
+        scheme: "Vikunja",
+        project: "Vikunja.xcodeproj",
+        configuration: "Release",
+        destination: "generic/platform=iOS",
+        export_method: "app-store",
+        export_options: {
+          provisioningProfiles: {
+            BUNDLE_ID => profile_name
+          }
+        },
+        output_name: "Vikunja.ipa",
+        output_directory: "./build"
+      )
+    ensure
+      if File.exist?(keychain_path) || File.exist?("#{keychain_path}-db")
+        delete_keychain(name: keychain_name)
+      end
+    end
+  end
+
+  desc "Upload Vikunja to TestFlight and wait for processing"
+  lane :release do
+    create_api_key
+
+    upload_to_testflight(
+      ipa: "./build/Vikunja.ipa",
+      app_identifier: BUNDLE_ID,
+      skip_submission: true,
+      distribute_external: false,
+      skip_waiting_for_build_processing: false,
+      wait_processing_timeout_duration: 1800
+    )
+
+    UI.success("Vikunja finished TestFlight processing.")
+  end
+end
