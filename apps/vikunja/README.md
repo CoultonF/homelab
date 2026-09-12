@@ -84,7 +84,7 @@ without a permission-fix initContainer. Both live under
 
 We run a fork renamed **To Do**: [CoultonF/vikunja](https://github.com/CoultonF/vikunja),
 branch `todo` (the fork's default branch), cut from upstream tag `v2.6.0`.
-Three commits on top of upstream:
+Four commits on top of upstream:
 
 1. `ci:` — deletes upstream's `.github/workflows/*` (their crons and PR/issue
    bots would otherwise run on the fork) and adds `todo-image.yml`, which
@@ -104,6 +104,10 @@ Three commits on top of upstream:
    Android/PWA, maskable, time-tracking favicon) is regenerated from the
    logo. The two llama photos — `llama-nightscape.jpg` (loading screen) and
    `no-auth-image.jpg` (login page) — are unchanged.
+4. `fix:` icon URLs carry `?v=2` (`index.html`, the manifest icons in
+   `vite.config.ts`, `useTimeTrackingFavicon.ts`). Vikunja serves every
+   image with a 1-year `immutable` Cache-Control (`pkg/routes/static.go`),
+   so without a new URL Cloudflare and browsers keep serving old icons.
 
 ### Making a change
 
@@ -111,6 +115,7 @@ Three commits on top of upstream:
    `.github/workflows/todo-image.yml` (`v2.6.0-todo.2`, `.3`, …), and push —
    CI publishes the image. Tags are immutable and the Deployment uses
    `imagePullPolicy: IfNotPresent`, so every change needs a new suffix.
+   If you change any icon, also bump that `?v=` (see 4. above).
 2. Bump `image:` in `vikunja-deployment.yaml` to that tag, commit, and push
    `main`. Wait for CI to finish first: the Deployment is `Recreate`, so a
    tag that doesn't exist yet takes the app down until it does.
