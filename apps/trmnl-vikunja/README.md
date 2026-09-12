@@ -62,13 +62,17 @@ Create the plugin at https://trmnl.com/plugins/my/new:
 | Field | Value |
 |---|---|
 | Name | Vikunja |
-| Description | Your Vikunja tasks, filtered and grouped like the Todoist plugin |
-| Icon | `assets/icon.png` from the plugin repo |
+| Description (max 50 chars) | Your Vikunja tasks, filtered and grouped |
+| Icon | `assets/icon.png` from the plugin repo (512×512) |
+| No Screen Padding | Off — the layouts use the framework's standard padding |
+| Category | Productivity |
+| Supported Refresh Interval | The fastest offered — every render is one live Vikunja query |
 | Installation URL | https://trmnl-vikunja.coultonf.com/install |
 | Installation Success Webhook URL | https://trmnl-vikunja.coultonf.com/webhooks/installation |
 | Plugin Management URL | https://trmnl-vikunja.coultonf.com/manage |
 | Plugin Markup URL | https://trmnl-vikunja.coultonf.com/markup |
 | Uninstallation Webhook URL | https://trmnl-vikunja.coultonf.com/webhooks/uninstall |
+| Knowledge Base URL | https://github.com/CoultonF/trmnl-vikunja#readme |
 
 Then install it from My Plugins. The install page asks for the Vikunja URL
 and an API token: in Vikunja open Settings → API Tokens and create one with
