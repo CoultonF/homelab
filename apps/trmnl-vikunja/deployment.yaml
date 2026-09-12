@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trmnl-vikunja
+  namespace: trmnl-vikunja
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: trmnl-vikunja
+  template:
+    metadata:
+      labels:
+        app: trmnl-vikunja
+    spec:
+      containers:
+        - name: trmnl-vikunja
+          image: ghcr.io/coultonf/trmnl-vikunja:latest
+          imagePullPolicy: Always
+          env:
+            - name: DATA_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: trmnl-vikunja-secrets
+                  key: data-encryption-key
+            - name: DATABASE_PATH
+              value: /data/plugin.sqlite
+            # In-cluster, todo.coultonf.com resolves to ingress-nginx's LAN IP
+            # (split-horizon DNS), which the plugin's SSRF guard blocks unless
+            # the host is allowlisted.
+            - name: ALLOWED_PRIVATE_VIKUNJA_HOSTS
+              value: todo.coultonf.com,vikunja.vikunja.svc.cluster.local
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: trmnl-vikunja-data
+        - name: tmp
+          emptyDir: {}
