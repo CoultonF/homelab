@@ -53,6 +53,7 @@ data:
             192.168.0.249 mealie.coultonf.com
             192.168.0.249 home.coultonf.com
             192.168.0.249 photos.coultonf.com
+            192.168.0.249 todo.coultonf.com
             fallthrough
         }
         # Forward to Google and Cloudflare DNS

@@ -60,5 +60,9 @@ data:
       - hostname: trmnl.coultonf.com
         service: http://trmnl-aranet.trmnl-aranet.svc.cluster.local:3000
 
+      # Route todo.coultonf.com to Vikunja
+      - hostname: todo.coultonf.com
+        service: http://vikunja.vikunja.svc.cluster.local:3456
+
       # Catch-all rule (must be last)
       - service: http_status:404

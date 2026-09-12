@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vikunja-config
+  namespace: vikunja
+data:
+  VIKUNJA_SERVICE_PUBLICURL: https://todo.coultonf.com/
+  VIKUNJA_SERVICE_ENABLEREGISTRATION: "false"
+  VIKUNJA_SERVICE_TIMEZONE: America/Edmonton
+  VIKUNJA_DATABASE_TYPE: sqlite
+  VIKUNJA_DATABASE_PATH: /db/vikunja.db
+  VIKUNJA_FILES_BASEPATH: /app/vikunja/files
