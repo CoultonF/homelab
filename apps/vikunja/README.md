@@ -84,30 +84,33 @@ without a permission-fix initContainer. Both live under
 
 We run a fork renamed **To Do**: [CoultonF/vikunja](https://github.com/CoultonF/vikunja),
 branch `todo` (the fork's default branch), cut from upstream tag `v2.6.0`.
-Four commits on top of upstream:
+Changes on top of upstream:
 
-1. `ci:` — deletes upstream's `.github/workflows/*` (their crons and PR/issue
+1. CI — deletes upstream's `.github/workflows/*` (their crons and PR/issue
    bots would otherwise run on the fork) and adds `todo-image.yml`, which
    builds the upstream Dockerfile on every push to `todo` and publishes
    `ghcr.io/coultonf/vikunja:<VERSION>` (+ `:todo`). The package must be
    public — the cluster pulls with no imagePullSecret.
-2. `feat:` rename — page and tab titles, PWA manifest name (home-screen
-   label), 2FA issuer, 32 English UI strings, and the logo wordmark
+2. Rename — page and tab titles, PWA manifest name (home-screen label), 2FA
+   issuer, 32 English UI strings, and the logo wordmark
    (`frontend/src/assets/logo-full*.svg`: "To Do" outlined in Quicksand Bold
    at the original's size and baseline). Kept on purpose: "Powered by
    Vikunja", the "Vikunja" quick-add-magic mode, the CalDAV docs link, and
    the "Vikunja Export" importer. Other UI languages are unchanged.
-3. `feat:` dog icons — `frontend/src/assets/dog-front.svg` and `dog-cool.svg`
-   (the source art, verbatim) replace the llama on the login page and the
-   empty task list, and dog-front sits in the logo circle (`logo.svg`,
-   `logo-full*.svg`). Every icon in `frontend/public/` (favicon, Apple touch,
-   Android/PWA, maskable, time-tracking favicon) is regenerated from the
-   logo. The two llama photos — `llama-nightscape.jpg` (loading screen) and
-   `no-auth-image.jpg` (login page) — are unchanged.
-4. `fix:` icon URLs carry `?v=2` (`index.html`, the manifest icons in
-   `vite.config.ts`, `useTimeTrackingFavicon.ts`). Vikunja serves every
-   image with a 1-year `immutable` Cache-Control (`pkg/routes/static.go`),
-   so without a new URL Cloudflare and browsers keep serving old icons.
+3. Luna artwork — `branding/luna-portrait.svg` and `branding/luna-full-body.svg`
+   are the source art, kept verbatim; `branding/build.py` derives everything
+   the app ships from them (see `branding/README.md` in the fork): the logo
+   circle (a 320px WebP embedded in `logo.svg` / `logo-full*.svg`; the
+   wordmark stays vector), the login-page and empty-task-list images
+   (`luna-*.webp`, 2x), and every icon in `frontend/public/`. The traced SVGs
+   are 0.7–0.9 MB each, too heavy to ship directly. The two llama photos —
+   `llama-nightscape.jpg` (loading screen) and `no-auth-image.jpg` (login
+   page) — are unchanged.
+4. Icon cache-busting — icon URLs carry `?v=3` (`index.html`, the manifest
+   icons in `vite.config.ts`, `useTimeTrackingFavicon.ts`). Vikunja serves
+   every image with a 1-year `immutable` Cache-Control
+   (`pkg/routes/static.go`), so without a new URL Cloudflare and browsers
+   keep serving old icons.
 
 ### Making a change
 
@@ -116,6 +119,8 @@ Four commits on top of upstream:
    CI publishes the image. Tags are immutable and the Deployment uses
    `imagePullPolicy: IfNotPresent`, so every change needs a new suffix.
    If you change any icon, also bump that `?v=` (see 4. above).
+   For new art, replace the SVGs in the fork's `branding/` and run
+   `branding/build.py` first.
 2. Bump `image:` in `vikunja-deployment.yaml` to that tag, commit, and push
    `main`. Wait for CI to finish first: the Deployment is `Recreate`, so a
    tag that doesn't exist yet takes the app down until it does.

@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: vikunja
-        image: ghcr.io/coultonf/vikunja:v2.6.0-todo.3
+        image: ghcr.io/coultonf/vikunja:v2.6.0-todo.4
         imagePullPolicy: IfNotPresent
         envFrom:
         - configMapRef:
