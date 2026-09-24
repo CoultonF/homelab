@@ -54,9 +54,8 @@ spec:
             # Accept DNS from Tailscale (optional, disable if using local DNS)
             - name: TS_ACCEPT_DNS
               value: "false"
-            # Extra args to enable IP forwarding and subnet routing
             - name: TS_EXTRA_ARGS
-              value: "--advertise-exit-node=false"
+              value: "--advertise-exit-node"
             # State directory
             - name: TS_STATE_DIR
               value: "/var/lib/tailscale"
